@@ -18,6 +18,13 @@ from app.wechat.media import upload_cover
 app = typer.Typer()
 
 
+def parse_iso_date(value: str, name: str) -> date:
+    try:
+        return date.fromisoformat(value)
+    except ValueError as exc:
+        raise typer.BadParameter(f"{name} 必须是 YYYY-MM-DD，例如 2026-04-20") from exc
+
+
 @app.command("run-once")
 def run_once() -> None:
     setup_logging()
@@ -35,6 +42,7 @@ def build_only() -> None:
 @app.command("publish-draft")
 def publish_draft(date_str: str = typer.Option(..., "--date")) -> None:
     setup_logging()
+    parse_iso_date(date_str, "date")
     result = asyncio.run(publish_existing_draft(date_str))
     typer.echo(result)
 
@@ -62,20 +70,30 @@ def check_wechat(mock: bool = typer.Option(True, help="是否使用 mock 模式"
         only_fans_can_comment=settings.wechat_only_fans_can_comment,
     )
     draft_media_id = asyncio.run(create_draft(client, article))
-    typer.echo({
-        "ok": True,
-        "mode": "real",
-        "token_prefix": token[:4] + "***",
-        "thumb_media_id": thumb_media_id,
-        "draft_media_id": draft_media_id,
-    })
+    typer.echo(
+        {
+            "ok": True,
+            "mode": "real",
+            "token_prefix": token[:4] + "***",
+            "thumb_media_id": thumb_media_id,
+            "draft_media_id": draft_media_id,
+        }
+    )
 
 
 @app.command("backfill")
-def backfill(start: date = typer.Option(...), end: date = typer.Option(...)) -> None:
+def backfill(
+    start: str = typer.Option(..., help="开始日期，格式 YYYY-MM-DD"),
+    end: str = typer.Option(..., help="结束日期，格式 YYYY-MM-DD"),
+) -> None:
     setup_logging()
-    current = start
-    while current <= end:
+    start_date = parse_iso_date(start, "start")
+    end_date = parse_iso_date(end, "end")
+    if start_date > end_date:
+        raise typer.BadParameter("start 不能晚于 end")
+
+    current = start_date
+    while current <= end_date:
         result = asyncio.run(run_daily_publish(target_date=current))
         typer.echo({"date": current.isoformat(), "result": result})
         current += timedelta(days=1)
