@@ -1,0 +1,17 @@
+# {{ title }}
+
+{{ date_line }}
+
+**今日汇率：**  
+1美元 = {{ usd_cny }} 人民币  
+1欧元 = {{ eur_cny }} 人民币  
+
+---
+
+{% for item in news_items %}
+{{ loop.index }}. {{ item.title }}：{{ item.summary }}
+{% endfor %}
+
+---
+
+> 数据来源：公开新闻源与汇率源，内容仅供行业信息参考。
