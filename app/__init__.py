@@ -1,0 +1,1 @@
+"""wx-auto-publisher package."""
