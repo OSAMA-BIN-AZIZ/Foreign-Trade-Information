@@ -50,3 +50,10 @@ python -m app.cli scheduler
 ## 已知限制
 - 不同公众号主体权限不同，自动发布能力不保证可用。
 - 农历当前为占位实现，可替换为真实日历库。
+
+
+## 个人主体账号建议（重点）
+- 建议先使用 `WECHAT_USE_DRAFT_ONLY=true`，确保稳定进入草稿箱。
+- 若想尝试自动发布，使用 `PUBLISH_MODE=safe_auto`，权限不足时会自动降级为仅草稿。
+- 先跑 `python -m app.cli check-wechat --mock false` 做真实连通性检查（token/封面上传/草稿创建）。
+- 再跑 `python -m app.cli run-once`，确认 `data/output/` 产物和草稿创建都正常。
