@@ -2,7 +2,7 @@ from app.wechat.client import WeChatClient
 
 
 async def upload_cover(client: WeChatClient, path: str) -> str:
-    data = await client.upload_temp_image(path)
+    data = await client.upload_thumb(path)
     return data["media_id"]
 
 

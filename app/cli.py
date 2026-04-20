@@ -6,6 +6,7 @@ from datetime import date, timedelta
 import typer
 
 from app.config import settings
+from app.exceptions import WeChatAPIError
 from app.logging_setup import setup_logging
 from app.models import DraftArticle
 from app.pipeline import publish_existing_draft, run_daily_publish
@@ -58,18 +59,23 @@ def check_wechat(mock: bool = typer.Option(True, help="是否使用 mock 模式"
         typer.echo({"ok": True, "mode": "mock", "token_prefix": token[:4] + "***"})
         return
 
-    cover_path = settings.cover_image_path if settings.cover_image_path.exists() else settings.cover_image_path
-    thumb_media_id = asyncio.run(upload_cover(client, str(cover_path)))
-    article = DraftArticle(
-        title="连通性检查草稿",
-        author=settings.wechat_author,
-        digest="check-wechat",
-        content="<p>check-wechat draft</p>",
-        thumb_media_id=thumb_media_id,
-        need_open_comment=settings.wechat_need_open_comment,
-        only_fans_can_comment=settings.wechat_only_fans_can_comment,
-    )
-    draft_media_id = asyncio.run(create_draft(client, article))
+    try:
+        cover_path = settings.cover_image_path if settings.cover_image_path.exists() else settings.cover_image_path
+        thumb_media_id = asyncio.run(upload_cover(client, str(cover_path)))
+        article = DraftArticle(
+            title="连通性检查草稿",
+            author=settings.wechat_author,
+            digest="check-wechat",
+            content="<p>check-wechat draft</p>",
+            thumb_media_id=thumb_media_id,
+            need_open_comment=settings.wechat_need_open_comment,
+            only_fans_can_comment=settings.wechat_only_fans_can_comment,
+        )
+        draft_media_id = asyncio.run(create_draft(client, article))
+    except WeChatAPIError as exc:
+        if exc.errcode == 40007:
+            raise typer.BadParameter("微信返回 invalid media_id(40007)。已切换为永久素材上传逻辑，请确认已部署最新代码后重试。") from exc
+        raise
     typer.echo(
         {
             "ok": True,

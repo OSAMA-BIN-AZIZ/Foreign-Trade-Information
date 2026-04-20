@@ -46,6 +46,24 @@ class WeChatClient:
     async def upload_article_image(self, path: str) -> dict:
         return await self._upload_image(path, temporary=False)
 
+    async def upload_thumb(self, path: str) -> dict:
+        """Upload permanent image material for draft thumb_media_id."""
+        Path(path).exists() or (_ for _ in ()).throw(FileNotFoundError(path))
+        if self.mock:
+            return {"media_id": f"mock_thumb_{Path(path).stem}", "url": f"https://mmbiz.qpic.cn/{Path(path).name}"}
+        token = await self.get_access_token()
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            with open(path, "rb") as f:
+                files = {"media": (Path(path).name, f, "image/jpeg")}
+                resp = await client.post(
+                    f"{BASE_URL}/material/add_material",
+                    params={"access_token": token, "type": "image"},
+                    files=files,
+                )
+            data = resp.json()
+            self._ensure_ok(data)
+            return data
+
     async def _upload_image(self, path: str, temporary: bool) -> dict:
         Path(path).exists() or (_ for _ in ()).throw(FileNotFoundError(path))
         if self.mock:
