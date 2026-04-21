@@ -13,7 +13,7 @@ from app.notify.webhook import notify_webhook
 from app.render.article_builder import ArticleBuilder, write_output
 from app.sources.calendar_info import format_gregorian, format_lunar
 from app.sources.dedup import deduplicate_news, score_news
-from app.sources.exchange_rate import CachedExchangeRateProvider, MockExchangeRateProvider
+from app.sources.exchange_rate import CachedExchangeRateProvider, LiveExchangeRateProvider, MockExchangeRateProvider
 from app.sources.news_http import HttpJsonNewsProvider
 from app.sources.news_rss import RssNewsProvider
 from app.storage.sqlite_store import SQLiteStateStore
@@ -27,12 +27,27 @@ logger = logging.getLogger(__name__)
 
 async def run_daily_publish(target_date: date | None = None, build_only: bool = False, mock_wechat: bool = True) -> dict:
     d = target_date or date.today()
-    rate_provider = CachedExchangeRateProvider(MockExchangeRateProvider(), Path("data/cache/rates.json"))
-    news_provider = RssNewsProvider() if settings.news_source_mode == "rss" else HttpJsonNewsProvider()
+    rate_inner = MockExchangeRateProvider()
+    if settings.exchange_rate_provider in {"live", "auto"}:
+        rate_inner = LiveExchangeRateProvider(timeout=settings.exchange_rate_timeout)
+    rate_provider = CachedExchangeRateProvider(rate_inner, Path("data/cache/rates.json"))
+
+    if settings.news_source_mode == "rss":
+        rss_urls = [u.strip() for u in settings.news_rss_urls.split(",") if u.strip()]
+        news_provider = RssNewsProvider(feed_urls=rss_urls, timeout=settings.news_fetch_timeout)
+    else:
+        news_provider = HttpJsonNewsProvider()
     state = SQLiteStateStore(settings.state_db)
     client = WeChatClient(settings.wechat_app_id, settings.wechat_app_secret, mock=mock_wechat)
 
-    rate = await rate_provider.fetch()
+    try:
+        rate = await rate_provider.fetch()
+    except Exception:
+        if settings.exchange_rate_provider == "auto":
+            rate = await MockExchangeRateProvider().fetch()
+            logger.warning("fetch_rates_fallback_mock", extra={"event": "fetch_rates_fallback_mock", "date": d.isoformat(), "status": "warn"})
+        else:
+            raise
     logger.info("fetch_rates_ok", extra={"event": "fetch_rates_ok", "date": d.isoformat(), "status": "ok"})
 
     items = await news_provider.fetch(settings.news_max_items)

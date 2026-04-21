@@ -55,6 +55,8 @@ python -m app.cli scheduler
 ## 已知限制
 - 不同公众号主体权限不同，自动发布能力不保证可用。
 - 农历当前为占位实现，可替换为真实日历库。
+- 汇率默认 `exchange_rate_provider=auto`：优先实时拉取，失败后降级缓存/Mock。
+- 新闻 `news_source_mode=rss` 默认拉取外部 RSS，失败时才降级为 Mock。
 
 
 ## 个人主体账号建议（重点）
