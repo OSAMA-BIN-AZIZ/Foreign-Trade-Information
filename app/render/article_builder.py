@@ -18,6 +18,7 @@ class ArticleBuilder:
                 "usd_cny": digest.exchange_rate.usd_cny,
                 "eur_cny": digest.exchange_rate.eur_cny,
                 "news_items": digest.news_items,
+                "data_note": digest.data_note,
             }
         )
         html = replace_local_images(self.renderer.markdown_to_html(md))
