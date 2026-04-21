@@ -13,7 +13,7 @@ from app.notify.webhook import notify_webhook
 from app.render.article_builder import ArticleBuilder, write_output
 from app.sources.calendar_info import format_gregorian, format_lunar
 from app.sources.dedup import deduplicate_news, score_news
-from app.sources.exchange_rate import CachedExchangeRateProvider, MockExchangeRateProvider
+from app.sources.exchange_rate import CachedExchangeRateProvider, LiveExchangeRateProvider, MockExchangeRateProvider
 from app.sources.news_http import HttpJsonNewsProvider
 from app.sources.news_rss import RssNewsProvider
 from app.storage.sqlite_store import SQLiteStateStore
@@ -27,18 +27,46 @@ logger = logging.getLogger(__name__)
 
 async def run_daily_publish(target_date: date | None = None, build_only: bool = False, mock_wechat: bool = True) -> dict:
     d = target_date or date.today()
-    rate_provider = CachedExchangeRateProvider(MockExchangeRateProvider(), Path("data/cache/rates.json"))
-    news_provider = RssNewsProvider() if settings.news_source_mode == "rss" else HttpJsonNewsProvider()
+    rate_inner = MockExchangeRateProvider()
+    if settings.exchange_rate_provider in {"live", "auto"}:
+        rate_inner = LiveExchangeRateProvider(timeout=settings.exchange_rate_timeout)
+    rate_provider = CachedExchangeRateProvider(rate_inner, Path("data/cache/rates.json"))
+
+    if settings.news_source_mode == "rss":
+        rss_urls = [u.strip() for u in settings.news_rss_urls.split(",") if u.strip()]
+        news_provider = RssNewsProvider(feed_urls=rss_urls, timeout=settings.news_fetch_timeout)
+    else:
+        news_provider = HttpJsonNewsProvider()
     state = SQLiteStateStore(settings.state_db)
     client = WeChatClient(settings.wechat_app_id, settings.wechat_app_secret, mock=mock_wechat)
 
-    rate = await rate_provider.fetch()
+    rate_fallback_used = False
+    news_fallback_used = False
+
+    try:
+        rate = await rate_provider.fetch()
+    except Exception:
+        if settings.exchange_rate_provider == "auto":
+            rate = await MockExchangeRateProvider().fetch()
+            rate_fallback_used = True
+            logger.warning("fetch_rates_fallback_mock", extra={"event": "fetch_rates_fallback_mock", "date": d.isoformat(), "status": "warn"})
+        else:
+            raise
     logger.info("fetch_rates_ok", extra={"event": "fetch_rates_ok", "date": d.isoformat(), "status": "ok"})
 
     items = await news_provider.fetch(settings.news_max_items)
+    news_fallback_used = bool(items) and all((it.source or "").startswith("Mock") for it in items)
+    if news_fallback_used:
+        logger.warning("fetch_news_fallback_mock", extra={"event": "fetch_news_fallback_mock", "date": d.isoformat(), "status": "warn"})
     items = score_news(deduplicate_news(items), {"MockRSS", "MockHTTP"})[: settings.news_max_items]
     items = items[: max(settings.news_min_items, min(len(items), settings.news_max_items))]
     logger.info("fetch_news_ok", extra={"event": "fetch_news_ok", "date": d.isoformat(), "status": "ok"})
+
+    notes: list[str] = []
+    if rate_fallback_used:
+        notes.append("汇率实时源不可用，已降级为缓存/Mock")
+    if news_fallback_used:
+        notes.append("新闻源不可用或被限流，已降级为Mock示例")
 
     digest = DailyDigest(
         title=f"{format_gregorian(d)}｜外贸与跨境资讯速览",
@@ -46,6 +74,7 @@ async def run_daily_publish(target_date: date | None = None, build_only: bool = 
         lunar_text=format_lunar(d),
         exchange_rate=rate,
         news_items=items,
+        data_note="；".join(notes),
     )
     builder = ArticleBuilder(Path("app/render/templates"))
     digest = builder.build(digest)
@@ -53,13 +82,25 @@ async def run_daily_publish(target_date: date | None = None, build_only: bool = 
 
     content_hash = hashlib.sha256(digest.html.encode("utf-8")).hexdigest()
     if state.is_duplicate(d.isoformat(), content_hash):
-        return {"status": "duplicate_skipped"}
+        return {
+            "status": "duplicate_skipped",
+            "md": str(settings.output_dir / f"{d.isoformat()}.md"),
+            "html": str(settings.output_dir / f"{d.isoformat()}.html"),
+            "rate_fallback_used": rate_fallback_used,
+            "news_fallback_used": news_fallback_used,
+        }
 
     md_path, html_path = write_output(settings.output_dir, d, digest.markdown, digest.html)
     logger.info("render_ok", extra={"event": "render_ok", "date": d.isoformat(), "status": "ok"})
 
     if build_only:
-        return {"status": "built", "md": str(md_path), "html": str(html_path)}
+        return {
+            "status": "built",
+            "md": str(md_path),
+            "html": str(html_path),
+            "rate_fallback_used": rate_fallback_used,
+            "news_fallback_used": news_fallback_used,
+        }
 
     cover_path = settings.cover_image_path if settings.cover_image_path.exists() else Path("assets/cover-default.jpg")
     thumb_media_id = await upload_cover(client, str(cover_path))
@@ -79,7 +120,14 @@ async def run_daily_publish(target_date: date | None = None, build_only: bool = 
     logger.info("draft_add_ok", extra={"event": "draft_add_ok", "date": d.isoformat(), "status": "ok"})
 
     mode = "draft_only" if settings.wechat_use_draft_only else settings.publish_mode
-    result = {"status": "draft_created", "draft_media_id": draft_media_id}
+    result = {
+        "status": "draft_created",
+        "draft_media_id": draft_media_id,
+        "md": str(md_path),
+        "html": str(html_path),
+        "rate_fallback_used": rate_fallback_used,
+        "news_fallback_used": news_fallback_used,
+    }
     if mode == "draft_only":
         return result
 

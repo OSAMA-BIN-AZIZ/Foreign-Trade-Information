@@ -21,10 +21,13 @@ class Settings(BaseSettings):
     output_dir: Path = Path("./data/output")
     state_db: Path = Path("./data/state.sqlite3")
 
-    exchange_rate_provider: str = "mock"
+    exchange_rate_provider: str = "auto"  # auto | live | mock
     exchange_rate_base: str = "CNY"
+    exchange_rate_timeout: float = 8.0
 
     news_source_mode: str = "rss"
+    news_rss_urls: str = "https://www.reutersagency.com/feed/?best-topics=business-finance&post_type=best,https://www.cnbc.com/id/10001147/device/rss/rss.html"
+    news_fetch_timeout: float = 8.0
     news_max_items: int = Field(default=12, ge=1)
     news_min_items: int = Field(default=8, ge=1)
 
