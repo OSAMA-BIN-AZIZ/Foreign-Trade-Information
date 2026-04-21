@@ -25,7 +25,12 @@ class RssNewsProvider:
             return self._mock_items(limit)
 
         items: list[NewsItem] = []
-        async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True) as client:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+            "Accept": "application/rss+xml, application/atom+xml, application/xml;q=0.9, */*;q=0.8",
+        }
+        async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True, headers=headers) as client:
             for feed_url in self.feed_urls:
                 try:
                     resp = await client.get(feed_url)
@@ -42,11 +47,20 @@ class RssNewsProvider:
 
     def _parse_rss(self, xml_text: str, feed_url: str) -> list[NewsItem]:
         root = ET.fromstring(xml_text)
-        channel = root.find("channel")
-        if channel is None:
-            return []
-
         source = urlparse(feed_url).netloc or "RSS"
+
+        # RSS 2.0
+        channel = root.find("channel")
+        if channel is not None:
+            return self._parse_rss_channel(channel, source)
+
+        # Atom
+        if root.tag.endswith("feed"):
+            return self._parse_atom_feed(root, source)
+
+        return []
+
+    def _parse_rss_channel(self, channel: ET.Element, source: str) -> list[NewsItem]:
         out: list[NewsItem] = []
         for node in channel.findall("item"):
             title = (node.findtext("title") or "").strip()
@@ -55,15 +69,32 @@ class RssNewsProvider:
             summary = (node.findtext("description") or "").strip()
             link = (node.findtext("link") or "").strip() or None
             published_at = self._parse_pubdate(node.findtext("pubDate"))
-            out.append(
-                NewsItem(
-                    source=source,
-                    title=title,
-                    summary=summary,
-                    url=link,
-                    published_at=published_at,
-                )
+            out.append(NewsItem(source=source, title=title, summary=summary, url=link, published_at=published_at))
+        return out
+
+    def _parse_atom_feed(self, root: ET.Element, source: str) -> list[NewsItem]:
+        out: list[NewsItem] = []
+        ns = {"atom": "http://www.w3.org/2005/Atom"}
+        entries = root.findall("atom:entry", ns) or root.findall("entry")
+        for node in entries:
+            title = (node.findtext("atom:title", default="", namespaces=ns) or node.findtext("title") or "").strip()
+            if not title:
+                continue
+            summary = (
+                (node.findtext("atom:summary", default="", namespaces=ns) or node.findtext("summary") or "")
+                or (node.findtext("atom:content", default="", namespaces=ns) or node.findtext("content") or "")
+            ).strip()
+            link_node = node.find("atom:link", ns) or node.find("link")
+            link = None
+            if link_node is not None:
+                link = (link_node.get("href") or "").strip() or (link_node.text or "").strip() or None
+            published_at = self._parse_pubdate(
+                node.findtext("atom:updated", default=None, namespaces=ns)
+                or node.findtext("updated")
+                or node.findtext("atom:published", default=None, namespaces=ns)
+                or node.findtext("published")
             )
+            out.append(NewsItem(source=source, title=title, summary=summary, url=link, published_at=published_at))
         return out
 
     @staticmethod
