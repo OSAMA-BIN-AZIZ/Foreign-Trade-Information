@@ -2,19 +2,33 @@
 
 {{ date_line }}
 
-**今日汇率：**  
-1美元 = {{ usd_cny }} 人民币  
-1欧元 = {{ eur_cny }} 人民币  
+**今日汇率**  
+- 美元/人民币：{{ usd_cny }}  
+- 欧元/人民币：{{ eur_cny }}
 
 ---
 
-{% for item in news_items %}
-{{ loop.index }}. {{ item.title }}：{{ item.summary }}
+## 🇨🇳 国内外贸要闻
+{% set domestic = domestic_items if domestic_items is defined and domestic_items else news_items %}
+{% for item in domestic %}
+{{ loop.index }}. **{{ item.title }}**  
+   {{ item.summary }}
 {% endfor %}
+
+## 🌍 国际外贸要闻
+{% set global_news = international_items if international_items is defined else [] %}
+{% if global_news %}
+{% for item in global_news %}
+{{ loop.index }}. **{{ item.title }}**  
+   {{ item.summary }}
+{% endfor %}
+{% else %}
+1. 今日暂无可用国际资讯，系统将持续抓取更新。
+{% endif %}
 
 ---
 {% if data_note %}
 > ⚠ {{ data_note }}
 {% endif %}
 
-> 数据来源：公开新闻源与汇率源，内容仅供行业信息参考。
+> 数据来源：公开新闻源与汇率源，仅供行业信息参考。

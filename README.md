@@ -59,6 +59,14 @@ python -m app.cli scheduler
 - 新闻 `news_source_mode=rss` 默认拉取外部 RSS，失败时才降级为 Mock。
 
 
+
+## 新闻源建议（中文 + 国际）
+- 优先配置 `NEWS_CN_RSS_URLS`（国内中文源）和 `NEWS_GLOBAL_RSS_URLS`（国际源）。
+- `NEWS_CN_MIN_ITEMS` 可控制最终列表里至少保留多少条中文资讯（默认 4）。
+- 若外部源不可用，会在内容中显示降级提示（Mock）。
+- 对非中文新闻会自动生成中文标题与中文摘要，适配微信公众号发布。
+- 模板按“国内/国际”分区展示，排版更简洁。
+
 ## 个人主体账号建议（重点）
 - 建议先使用 `WECHAT_USE_DRAFT_ONLY=true`，确保稳定进入草稿箱。
 - 若想尝试自动发布，使用 `PUBLISH_MODE=safe_auto`，权限不足时会自动降级为仅草稿。

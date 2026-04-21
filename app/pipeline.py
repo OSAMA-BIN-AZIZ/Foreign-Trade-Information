@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 from datetime import date, datetime
 from pathlib import Path
 
@@ -25,6 +26,58 @@ from app.wechat.publish import poll_publish_status, submit_publish
 logger = logging.getLogger(__name__)
 
 
+_CJK_RE = re.compile(r"[一-鿿]")
+
+
+def _is_chinese_text(text: str) -> bool:
+    return bool(_CJK_RE.search(text or ""))
+
+
+def _infer_topic_cn(text: str) -> str:
+    lower = (text or "").lower()
+    mapping = {
+        "tariff": "关税政策",
+        "custom": "海关通关",
+        "shipping": "国际航运",
+        "logistics": "跨境物流",
+        "fx": "汇率波动",
+        "currency": "汇率波动",
+        "export": "出口市场",
+        "import": "进口市场",
+        "trade": "国际贸易",
+        "ecommerce": "跨境电商",
+    }
+    for key, value in mapping.items():
+        if key in lower:
+            return value
+    return "国际贸易"
+
+
+def _localize_news(item, idx: int):
+    text = f"{item.title} {item.summary}"
+    is_cn = _is_chinese_text(text)
+    if is_cn:
+        item.tags = ["国内"]
+        return item
+
+    topic = _infer_topic_cn(text)
+    item.tags = ["国际"]
+    item.title = f"国际外贸动态{idx}：{topic}"
+    item.summary = f"该资讯来自国际公开新闻源，重点涉及{topic}，建议关注对出口订单、物流时效与收汇成本的影响。"
+    return item
+
+
+def _select_balanced_news(items, total: int, cn_min: int):
+    cn = [i for i in items if _is_chinese_text(f"{i.title} {i.summary}")]
+    global_items = [i for i in items if i not in cn]
+    picked = cn[:cn_min] + global_items[: max(0, total - min(len(cn), cn_min))]
+    if len(picked) < total:
+        rest = [i for i in items if i not in picked]
+        picked.extend(rest[: total - len(picked)])
+    return picked[:total]
+
+
+
 async def run_daily_publish(target_date: date | None = None, build_only: bool = False, mock_wechat: bool = True) -> dict:
     d = target_date or date.today()
     rate_inner = MockExchangeRateProvider()
@@ -33,7 +86,10 @@ async def run_daily_publish(target_date: date | None = None, build_only: bool = 
     rate_provider = CachedExchangeRateProvider(rate_inner, Path("data/cache/rates.json"))
 
     if settings.news_source_mode == "rss":
-        rss_urls = [u.strip() for u in settings.news_rss_urls.split(",") if u.strip()]
+        legacy_urls = [u.strip() for u in settings.news_rss_urls.split(",") if u.strip()]
+        cn_urls = [u.strip() for u in settings.news_cn_rss_urls.split(",") if u.strip()]
+        global_urls = [u.strip() for u in settings.news_global_rss_urls.split(",") if u.strip()]
+        rss_urls = legacy_urls or (cn_urls + global_urls)
         news_provider = RssNewsProvider(feed_urls=rss_urls, timeout=settings.news_fetch_timeout)
     else:
         news_provider = HttpJsonNewsProvider()
@@ -58,8 +114,10 @@ async def run_daily_publish(target_date: date | None = None, build_only: bool = 
     news_fallback_used = bool(items) and all((it.source or "").startswith("Mock") for it in items)
     if news_fallback_used:
         logger.warning("fetch_news_fallback_mock", extra={"event": "fetch_news_fallback_mock", "date": d.isoformat(), "status": "warn"})
-    items = score_news(deduplicate_news(items), {"MockRSS", "MockHTTP"})[: settings.news_max_items]
-    items = items[: max(settings.news_min_items, min(len(items), settings.news_max_items))]
+    items = score_news(deduplicate_news(items), {"MockRSS", "MockHTTP"})
+    target_n = max(settings.news_min_items, min(len(items), settings.news_max_items))
+    items = _select_balanced_news(items, total=target_n, cn_min=settings.news_cn_min_items)
+    items = [_localize_news(i, idx=n) for n, i in enumerate(items, start=1)]
     logger.info("fetch_news_ok", extra={"event": "fetch_news_ok", "date": d.isoformat(), "status": "ok"})
 
     notes: list[str] = []
