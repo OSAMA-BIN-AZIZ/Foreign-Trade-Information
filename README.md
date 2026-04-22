@@ -33,15 +33,31 @@ python -m app.cli build-only
 python -m app.cli run-once
 ```
 
-## CLI
+## CLI（主要命令说明）
 ```bash
 python -m app.cli run-once
+# 执行一次完整流程：抓取数据 -> 生成内容 -> 创建草稿（按发布模式可自动发布）
+
 python -m app.cli build-only
+# 只抓取并渲染，输出到 data/output，不调用微信接口
+
 python -m app.cli publish-draft --date 2026-04-20
+# 按日期发布已有草稿（需该日期草稿已存在）
+
 python -m app.cli check-wechat
+# 微信连通性检查（token、素材上传、草稿创建链路）
+
 python -m app.cli backfill --start 2026-04-01 --end 2026-04-20
+# 批量回填历史日期内容
+
 python -m app.cli scheduler
+# 启动定时任务（按 publish_cron 执行）
 ```
+
+## 汇率来源说明
+- 美元/人民币（USD/CNY）优先来自：`open.er-api` -> `frankfurter` -> `exchangerate-api`。
+- 欧元/人民币（EUR/CNY）优先使用 `frankfurter` 的 EUR 基准直出值，失败时再走其他源换算。
+- 若实时源不可用，会降级为缓存/演示值，并在正文里标注“非最新”。
 
 ## 发布模式
 - `draft_only`: 仅创建草稿。
@@ -55,7 +71,18 @@ python -m app.cli scheduler
 ## 已知限制
 - 不同公众号主体权限不同，自动发布能力不保证可用。
 - 农历当前为占位实现，可替换为真实日历库。
+- 汇率默认 `exchange_rate_provider=auto`：优先实时拉取，失败后降级缓存/Mock。
+- 新闻 `news_source_mode=rss` 默认拉取外部 RSS，失败时才降级为 Mock。
 
+
+
+## 新闻源建议（中文 + 国际）
+- 优先配置 `NEWS_CN_RSS_URLS`（国内中文源）和 `NEWS_GLOBAL_RSS_URLS`（国际源）。
+- `NEWS_CN_MIN_ITEMS` 可控制最终列表里至少保留多少条中文资讯（默认 4）。
+- 若外部源不可用，会在内容中显示降级提示（Mock）。
+- 对非中文新闻会自动生成中文标题与中文摘要，适配微信公众号发布。
+- 模板按“国内/国际”分区展示，排版更简洁。
+- 默认每次尽量保留 20 条高相关资讯（不足时会降级补充并提示）。
 
 ## 个人主体账号建议（重点）
 - 建议先使用 `WECHAT_USE_DRAFT_ONLY=true`，确保稳定进入草稿箱。
