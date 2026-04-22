@@ -11,14 +11,14 @@
 
 {% for item in news_items %}
 {{ loop.index }}. {{ item.title }}{% if item.summary %}：{{ item.summary }}{% endif %}  
-{% endfor %}
 {% else %}
 - 暂无高相关国际外贸事件（已自动过滤低相关资讯）。
-{% endif %}
+{% endfor %}
 
 ---
+
 {% if data_note %}
 > ⚠ {{ data_note }}
-{% endfor %}
+{% endif %}
 
 > 数据来源：公开新闻源与汇率源，仅供行业参考。
