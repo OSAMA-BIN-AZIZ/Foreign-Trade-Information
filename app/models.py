@@ -27,6 +27,7 @@ class DailyDigest(BaseModel):
     lunar_text: str
     exchange_rate: ExchangeRate
     news_items: list[NewsItem]
+    data_note: str = ""
     markdown: str | None = None
     html: str | None = None
 
