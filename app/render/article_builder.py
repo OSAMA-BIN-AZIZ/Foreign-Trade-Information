@@ -19,6 +19,8 @@ class ArticleBuilder:
                 "date_line": digest.lunar_text,
                 "usd_cny": digest.exchange_rate.usd_cny,
                 "eur_cny": digest.exchange_rate.eur_cny,
+                "rate_as_of": digest.exchange_rate.as_of.astimezone().strftime("%Y-%m-%d %H:%M"),
+                "rate_stale": digest.exchange_rate.stale,
                 "news_items": digest.news_items,
                 "domestic_items": domestic_items,
                 "international_items": international_items,

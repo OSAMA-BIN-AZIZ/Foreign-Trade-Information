@@ -13,7 +13,7 @@ from app.notify.console import notify
 from app.notify.webhook import notify_webhook
 from app.render.article_builder import ArticleBuilder, write_output
 from app.sources.calendar_info import format_gregorian, format_lunar
-from app.sources.dedup import deduplicate_news, score_news
+from app.sources.dedup import deduplicate_news, filter_trade_related, score_news
 from app.sources.exchange_rate import CachedExchangeRateProvider, LiveExchangeRateProvider, MockExchangeRateProvider
 from app.sources.news_http import HttpJsonNewsProvider
 from app.sources.news_rss import RssNewsProvider
@@ -104,16 +104,21 @@ async def run_daily_publish(target_date: date | None = None, build_only: bool = 
     except Exception:
         if settings.exchange_rate_provider == "auto":
             rate = await MockExchangeRateProvider().fetch()
+            rate.stale = True
             rate_fallback_used = True
             logger.warning("fetch_rates_fallback_mock", extra={"event": "fetch_rates_fallback_mock", "date": d.isoformat(), "status": "warn"})
         else:
             raise
     logger.info("fetch_rates_ok", extra={"event": "fetch_rates_ok", "date": d.isoformat(), "status": "ok"})
 
-    items = await news_provider.fetch(settings.news_max_items)
-    news_fallback_used = bool(items) and all((it.source or "").startswith("Mock") for it in items)
+    fetched_items = await news_provider.fetch(settings.news_max_items * 2)
+    items = filter_trade_related(fetched_items)
+    news_fallback_used = bool(fetched_items) and all((it.source or "").startswith("Mock") for it in fetched_items)
     if news_fallback_used:
         logger.warning("fetch_news_fallback_mock", extra={"event": "fetch_news_fallback_mock", "date": d.isoformat(), "status": "warn"})
+    if not items and fetched_items:
+        items = fetched_items[: settings.news_min_items]
+
     items = score_news(deduplicate_news(items), {"MockRSS", "MockHTTP"})
     target_n = max(settings.news_min_items, min(len(items), settings.news_max_items))
     items = _select_balanced_news(items, total=target_n, cn_min=settings.news_cn_min_items)
@@ -123,8 +128,12 @@ async def run_daily_publish(target_date: date | None = None, build_only: bool = 
     notes: list[str] = []
     if rate_fallback_used:
         notes.append("汇率实时源不可用，已降级为缓存/Mock")
+    elif rate.stale:
+        notes.append("汇率为缓存数据，可能非最新")
     if news_fallback_used:
         notes.append("新闻源不可用或被限流，已降级为Mock示例")
+    if fetched_items and not filter_trade_related(fetched_items):
+        notes.append("未检索到足量高相关外贸资讯，已补充可能相关事件")
 
     digest = DailyDigest(
         title=f"{format_gregorian(d)}｜外贸与跨境资讯速览",
