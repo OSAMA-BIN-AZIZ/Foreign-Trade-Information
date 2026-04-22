@@ -23,3 +23,7 @@ def setup_logging() -> None:
     handler = logging.StreamHandler()
     handler.setFormatter(JsonFormatter())
     logger.addHandler(handler)
+
+    # 降低第三方 HTTP 请求日志噪音，避免刷屏且默认英文难读
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
