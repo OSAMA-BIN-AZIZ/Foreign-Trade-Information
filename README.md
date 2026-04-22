@@ -33,15 +33,31 @@ python -m app.cli build-only
 python -m app.cli run-once
 ```
 
-## CLI
+## CLI（主要命令说明）
 ```bash
 python -m app.cli run-once
+# 执行一次完整流程：抓取数据 -> 生成内容 -> 创建草稿（按发布模式可自动发布）
+
 python -m app.cli build-only
+# 只抓取并渲染，输出到 data/output，不调用微信接口
+
 python -m app.cli publish-draft --date 2026-04-20
+# 按日期发布已有草稿（需该日期草稿已存在）
+
 python -m app.cli check-wechat
+# 微信连通性检查（token、素材上传、草稿创建链路）
+
 python -m app.cli backfill --start 2026-04-01 --end 2026-04-20
+# 批量回填历史日期内容
+
 python -m app.cli scheduler
+# 启动定时任务（按 publish_cron 执行）
 ```
+
+## 汇率来源说明
+- 美元/人民币（USD/CNY）优先来自：`open.er-api` -> `frankfurter` -> `exchangerate-api`。
+- 欧元/人民币（EUR/CNY）优先使用 `frankfurter` 的 EUR 基准直出值，失败时再走其他源换算。
+- 若实时源不可用，会降级为缓存/演示值，并在正文里标注“非最新”。
 
 ## 发布模式
 - `draft_only`: 仅创建草稿。
