@@ -10,7 +10,10 @@ class JsonFormatter(logging.Formatter):
             "level": record.levelname,
             "message": record.getMessage(),
         }
-        for key in ("event", "date", "trace_id", "status"):
+        for key in (
+            "event", "date", "trace_id", "status", "provider", "source", "feed_url",
+            "fetched", "filtered", "domestic", "international", "error", "duration_ms",
+        ):
             if hasattr(record, key):
                 payload[key] = getattr(record, key)
         return json.dumps(payload, ensure_ascii=False)
@@ -23,3 +26,7 @@ def setup_logging() -> None:
     handler = logging.StreamHandler()
     handler.setFormatter(JsonFormatter())
     logger.addHandler(handler)
+
+    # 降低第三方 HTTP 请求日志噪音，避免刷屏且默认英文难读
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
