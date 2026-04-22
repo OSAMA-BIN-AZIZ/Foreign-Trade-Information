@@ -1,16 +1,20 @@
 # {{ title }}
 
-{{ date_line }}
+> {{ date_line }}
 
-**今日汇率：**  
-1美元 = {{ usd_cny }} 人民币  
-1欧元 = {{ eur_cny }} 人民币  
+## 💱 今日汇率
+- **美元/人民币**：`{{ usd_cny }}`
+- **欧元/人民币**：`{{ eur_cny }}`
+- **更新时间**：{{ rate_as_of }}{% if rate_stale %}（缓存数据）{% else %}（实时）{% endif %}
 
 ---
 
 {% for item in news_items %}
 {{ loop.index }}. {{ item.title }}{% if item.summary %}：{{ item.summary }}{% endif %}  
 {% endfor %}
+{% else %}
+- 暂无高相关国际外贸事件（已自动过滤低相关资讯）。
+{% endif %}
 
 ---
 {% if data_note %}
