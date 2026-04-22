@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import logging
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -80,7 +81,9 @@ class WeChatClient:
 
     async def add_draft(self, article: DraftArticle) -> dict:
         if self.mock:
-            return {"media_id": "mock_draft_media_id"}
+            seed = f"{article.title}|{article.digest}|{len(article.content)}"
+            digest = hashlib.sha1(seed.encode("utf-8")).hexdigest()[:12]
+            return {"media_id": f"mock_draft_{digest}"}
         token = await self.get_access_token()
         payload = {"articles": [article.model_dump()]}
         return await self._post_with_retry("draft/add", payload, token)
