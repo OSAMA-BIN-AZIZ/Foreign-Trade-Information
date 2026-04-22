@@ -25,11 +25,12 @@ class Settings(BaseSettings):
     exchange_rate_base: str = "CNY"
     exchange_rate_timeout: float = 8.0
     outbound_http_proxy: str = ""
+    outbound_proxy_mode: str = "auto"  # auto | on | off
 
     news_source_mode: str = "rss"
     # 兼容旧配置：news_rss_urls 仍可用；建议分别配置国内/国际源。
     news_rss_urls: str = ""
-    news_cn_rss_urls: str = "https://www.yicai.com/rss.xml,https://www.chinanews.com.cn/rss/scroll-news.xml"
+    news_cn_rss_urls: str = "https://www.chinanews.com.cn/rss/scroll-news.xml"
     news_global_rss_urls: str = "https://news.un.org/feed/subscribe/en/news/all/rss.xml,https://www.aljazeera.com/xml/rss/all.xml"
     news_fetch_timeout: float = 8.0
     news_max_items: int = Field(default=20, ge=1)

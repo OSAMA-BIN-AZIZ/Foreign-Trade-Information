@@ -74,6 +74,7 @@ python -m app.cli scheduler
 - 汇率默认 `exchange_rate_provider=auto`：优先实时拉取，失败后降级缓存/Mock。
 - 新闻 `news_source_mode=rss` 默认拉取外部 RSS，失败时才降级为 Mock。
 
+
 ## 新闻源建议（中文 + 国际）
 - 优先配置 `NEWS_CN_RSS_URLS`（国内中文源）和 `NEWS_GLOBAL_RSS_URLS`（国际源）。
 - `NEWS_CN_MIN_ITEMS` 可控制最终列表里至少保留多少条中文资讯（默认 4）。
@@ -82,6 +83,14 @@ python -m app.cli scheduler
 - 模板按“国内/国际”分区展示，排版更简洁。
 - 默认每次尽量保留 20 条高相关资讯（不足时会降级补充并提示）。
 
+
+## 新闻源建议（中文 + 国际）
+- 优先配置 `NEWS_CN_RSS_URLS`（国内中文源）和 `NEWS_GLOBAL_RSS_URLS`（国际源）。
+- `NEWS_CN_MIN_ITEMS` 可控制最终列表里至少保留多少条中文资讯（默认 4）。
+- 若外部源不可用，会在内容中显示降级提示（Mock）。
+- 对非中文新闻会自动生成中文标题与中文摘要，适配微信公众号发布。
+- 模板按“国内/国际”分区展示，排版更简洁。
+- 默认每次尽量保留 20 条高相关资讯（不足时会降级补充并提示）。
 
 ## 新闻源建议（中文 + 国际）
 - 优先配置 `NEWS_CN_RSS_URLS`（国内中文源）和 `NEWS_GLOBAL_RSS_URLS`（国际源）。
@@ -106,5 +115,15 @@ python -m app.cli scheduler
 
 ## 中国网络环境抓取建议
 - 部分国际 RSS/API 可能在中国大陆访问不稳定，建议配置代理。
-- 可在 `.env` 中设置：`OUTBOUND_HTTP_PROXY=http://127.0.0.1:7890`。
-- 程序会优先使用 `OUTBOUND_HTTP_PROXY`，同时兼容系统环境变量 `HTTP_PROXY/HTTPS_PROXY`。
+- 可在 `.env` 中设置：`OUTBOUND_HTTP_PROXY=http://127.0.0.1:10808`。
+- 程序支持 `OUTBOUND_PROXY_MODE=auto|on|off`：
+  - `auto`：先直连，失败再走代理（推荐）
+  - `on`：强制走代理
+  - `off`：强制不走代理
+- 同时兼容系统环境变量 `HTTP_PROXY/HTTPS_PROXY`。
+
+
+## RSS源抓取失败常见原因
+- `HTTP 404`：RSS 地址已失效或页面并非 RSS。
+- `HTTP 403`：被目标站点拦截（常见于无代理或UA策略限制）。
+- `网络错误`：本地网络或代理不可达。

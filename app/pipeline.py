@@ -82,7 +82,7 @@ async def run_daily_publish(target_date: date | None = None, build_only: bool = 
     d = target_date or date.today()
     rate_inner = MockExchangeRateProvider()
     if settings.exchange_rate_provider in {"live", "auto"}:
-        rate_inner = LiveExchangeRateProvider(timeout=settings.exchange_rate_timeout, proxy=settings.outbound_http_proxy)
+        rate_inner = LiveExchangeRateProvider(timeout=settings.exchange_rate_timeout, proxy=settings.outbound_http_proxy, proxy_mode=settings.outbound_proxy_mode)
     rate_provider = CachedExchangeRateProvider(rate_inner, Path("data/cache/rates.json"))
 
     if settings.news_source_mode == "rss":
@@ -90,7 +90,7 @@ async def run_daily_publish(target_date: date | None = None, build_only: bool = 
         cn_urls = [u.strip() for u in settings.news_cn_rss_urls.split(",") if u.strip()]
         global_urls = [u.strip() for u in settings.news_global_rss_urls.split(",") if u.strip()]
         rss_urls = legacy_urls or (cn_urls + global_urls)
-        news_provider = RssNewsProvider(feed_urls=rss_urls, timeout=settings.news_fetch_timeout, proxy=settings.outbound_http_proxy)
+        news_provider = RssNewsProvider(feed_urls=rss_urls, timeout=settings.news_fetch_timeout, proxy=settings.outbound_http_proxy, proxy_mode=settings.outbound_proxy_mode)
     else:
         news_provider = HttpJsonNewsProvider()
     state = SQLiteStateStore(settings.state_db)

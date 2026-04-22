@@ -17,11 +17,41 @@ class NewsProvider(Protocol):
 
 
 class RssNewsProvider:
-    def __init__(self, feed_urls: list[str] | None = None, timeout: float = 8.0, proxy: str = "") -> None:
+    @staticmethod
+    def _format_fetch_error(exc: Exception) -> str:
+        if isinstance(exc, httpx.HTTPStatusError):
+            return f"HTTP {exc.response.status_code}"
+        if isinstance(exc, httpx.RequestError):
+            return f"网络错误: {exc.__class__.__name__}"
+        return str(exc) or exc.__class__.__name__
+
+    def __init__(self, feed_urls: list[str] | None = None, timeout: float = 8.0, proxy: str = "", proxy_mode: str = "auto") -> None:
         self.feed_urls = feed_urls or []
         self.timeout = timeout
         self.proxy = proxy or None
+        self.proxy_mode = proxy_mode
         self.logger = logging.getLogger(__name__)
+
+    def _proxy_attempts(self) -> list[bool]:
+        if self.proxy_mode == "on":
+            return [True]
+        if self.proxy_mode == "off":
+            return [False]
+        return [False, True] if self.proxy else [False]
+
+    async def _fetch_feed_text(self, feed_url: str, headers: dict[str, str]) -> str:
+        last_error: Exception | None = None
+        for use_proxy in self._proxy_attempts():
+            try:
+                async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True, headers=headers, proxy=(self.proxy if use_proxy else None), trust_env=True) as client:
+                    resp = await client.get(feed_url)
+                    resp.raise_for_status()
+                    return resp.text
+            except Exception as exc:
+                last_error = exc
+                continue
+        detail = self._format_fetch_error(last_error) if last_error else "unknown"
+        raise RuntimeError(f"feed request failed: {feed_url} ({detail})") from last_error
 
     async def fetch(self, limit: int) -> list[NewsItem]:
         if not self.feed_urls:
@@ -33,17 +63,15 @@ class RssNewsProvider:
             "(KHTML, like Gecko) Chrome/124.0 Safari/537.36",
             "Accept": "application/rss+xml, application/atom+xml, application/xml;q=0.9, */*;q=0.8",
         }
-        async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True, headers=headers, proxy=self.proxy, trust_env=True) as client:
-            for feed_url in self.feed_urls:
-                try:
-                    resp = await client.get(feed_url)
-                    resp.raise_for_status()
-                    parsed = self._parse_rss(resp.text, feed_url)
-                    items.extend(parsed)
-                    self.logger.info("RSS源抓取成功", extra={"event": "rss_feed_ok", "status": "ok", "feed_url": feed_url, "fetched": len(parsed)})
-                except Exception as exc:
-                    self.logger.warning("RSS源抓取失败", extra={"event": "rss_feed_fail", "status": "warn", "feed_url": feed_url, "error": str(exc)})
-                    continue
+        for feed_url in self.feed_urls:
+            try:
+                text = await self._fetch_feed_text(feed_url, headers)
+                parsed = self._parse_rss(text, feed_url)
+                items.extend(parsed)
+                self.logger.info("RSS源抓取成功", extra={"event": "rss_feed_ok", "status": "ok", "feed_url": feed_url, "fetched": len(parsed)})
+            except Exception as exc:
+                self.logger.warning("RSS源抓取失败", extra={"event": "rss_feed_fail", "status": "warn", "feed_url": feed_url, "error": self._format_fetch_error(exc)})
+                continue
 
         if not items:
             self.logger.warning("全部RSS源失败，使用Mock新闻", extra={"event": "rss_all_failed", "status": "warn"})
