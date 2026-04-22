@@ -48,6 +48,135 @@ class MockExchangeRateProvider:
             as_of=datetime.now(timezone.utc),
             stale=True,
         )
+        return ExchangeRate(base="CNY", usd_cny=usd_cny, eur_cny=eur_cny, as_of=as_of, stale=False)
+
+    async def _fetch_from_frankfurter(self) -> ExchangeRate:
+        # 使用 EUR 为基准，直接拿到 EUR/CNY，减少交叉换算误差
+        url = "https://api.frankfurter.app/latest?from=EUR&to=CNY,USD"
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+            payload = resp.json()
+
+        rates = payload.get("rates") or {}
+        try:
+            eur_cny = Decimal(str(rates["CNY"]))
+            eur_usd = Decimal(str(rates["USD"]))
+            usd_cny = (eur_cny / eur_usd).quantize(Decimal("0.0001"))
+        except (KeyError, InvalidOperation, ZeroDivisionError) as exc:
+            raise ValueError("frankfurter payload missing required currencies") from exc
+
+        date_str = payload.get("date")
+        as_of = datetime.fromisoformat(f"{date_str}T00:00:00+00:00") if date_str else datetime.now(timezone.utc)
+        return ExchangeRate(base="CNY", usd_cny=usd_cny, eur_cny=eur_cny.quantize(Decimal("0.0001")), as_of=as_of, stale=False)
+
+
+    async def _fetch_from_exchange_rate_api(self) -> ExchangeRate:
+        url = "https://api.exchangerate-api.com/v4/latest/USD"
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+            payload = resp.json()
+
+        rates = payload.get("rates") or {}
+        usd_cny, eur_cny = self._extract_usd_eur_cny(rates)
+        time_str = payload.get("time_last_updated") or payload.get("date")
+        if isinstance(time_str, str) and len(time_str) >= 10:
+            as_of = datetime.fromisoformat(f"{time_str[:10]}T00:00:00+00:00")
+        else:
+            as_of = datetime.now(timezone.utc)
+        return ExchangeRate(base="CNY", usd_cny=usd_cny, eur_cny=eur_cny, as_of=as_of, stale=False)
+    @staticmethod
+    def _extract_usd_eur_cny(rates: dict) -> tuple[Decimal, Decimal]:
+        try:
+            usd_cny = Decimal(str(rates["CNY"]))
+            usd_eur = Decimal(str(rates["EUR"]))
+            eur_cny = (usd_cny / usd_eur).quantize(Decimal("0.0001"))
+        except (KeyError, InvalidOperation, ZeroDivisionError) as exc:
+            raise ValueError("exchange rate payload missing required currencies") from exc
+        return usd_cny, eur_cny
+
+
+class LiveExchangeRateProvider:
+    """Fetch live FX data with multi-source fallback."""
+
+    def __init__(self, timeout: float = 8.0, proxy: str = "") -> None:
+        self.timeout = timeout
+        self.proxy = proxy or None
+
+    async def fetch(self) -> ExchangeRate:
+        last_error: Exception | None = None
+        for loader in (self._fetch_from_open_er_api, self._fetch_from_frankfurter, self._fetch_from_exchange_rate_api):
+            try:
+                rate = await loader()
+                logger.info("汇率源拉取成功", extra={"event": "fx_source_ok", "status": "ok", "provider": loader.__name__})
+                return rate
+            except Exception as exc:
+                last_error = exc
+                logger.warning("汇率源拉取失败", extra={"event": "fx_source_fail", "status": "warn", "provider": loader.__name__, "error": str(exc)})
+                continue
+        raise RuntimeError("all live exchange-rate sources failed") from last_error
+
+    async def _fetch_from_open_er_api(self) -> ExchangeRate:
+        url = "https://open.er-api.com/v6/latest/USD"
+        async with httpx.AsyncClient(timeout=self.timeout, proxy=self.proxy, trust_env=True) as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+            payload = resp.json()
+
+        rates = payload.get("rates") or {}
+        usd_cny, eur_cny = self._extract_usd_eur_cny(rates)
+        as_of = datetime.fromtimestamp(
+            int(payload.get("time_last_update_unix", 0)) or int(datetime.now(timezone.utc).timestamp()),
+            tz=timezone.utc,
+        )
+        return ExchangeRate(base="CNY", usd_cny=usd_cny, eur_cny=eur_cny, as_of=as_of, stale=False)
+
+    async def _fetch_from_frankfurter(self) -> ExchangeRate:
+        # 使用 EUR 为基准，直接拿到 EUR/CNY，减少交叉换算误差
+        url = "https://api.frankfurter.app/latest?from=EUR&to=CNY,USD"
+        async with httpx.AsyncClient(timeout=self.timeout, proxy=self.proxy, trust_env=True) as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+            payload = resp.json()
+
+        rates = payload.get("rates") or {}
+        try:
+            eur_cny = Decimal(str(rates["CNY"]))
+            eur_usd = Decimal(str(rates["USD"]))
+            usd_cny = (eur_cny / eur_usd).quantize(Decimal("0.0001"))
+        except (KeyError, InvalidOperation, ZeroDivisionError) as exc:
+            raise ValueError("frankfurter payload missing required currencies") from exc
+
+        date_str = payload.get("date")
+        as_of = datetime.fromisoformat(f"{date_str}T00:00:00+00:00") if date_str else datetime.now(timezone.utc)
+        return ExchangeRate(base="CNY", usd_cny=usd_cny, eur_cny=eur_cny.quantize(Decimal("0.0001")), as_of=as_of, stale=False)
+
+
+    async def _fetch_from_exchange_rate_api(self) -> ExchangeRate:
+        url = "https://api.exchangerate-api.com/v4/latest/USD"
+        async with httpx.AsyncClient(timeout=self.timeout, proxy=self.proxy, trust_env=True) as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+            payload = resp.json()
+
+        rates = payload.get("rates") or {}
+        usd_cny, eur_cny = self._extract_usd_eur_cny(rates)
+        time_str = payload.get("time_last_updated") or payload.get("date")
+        if isinstance(time_str, str) and len(time_str) >= 10:
+            as_of = datetime.fromisoformat(f"{time_str[:10]}T00:00:00+00:00")
+        else:
+            as_of = datetime.now(timezone.utc)
+        return ExchangeRate(base="CNY", usd_cny=usd_cny, eur_cny=eur_cny, as_of=as_of, stale=False)
+    @staticmethod
+    def _extract_usd_eur_cny(rates: dict) -> tuple[Decimal, Decimal]:
+        try:
+            usd_cny = Decimal(str(rates["CNY"]))
+            usd_eur = Decimal(str(rates["EUR"]))
+            eur_cny = (usd_cny / usd_eur).quantize(Decimal("0.0001"))
+        except (KeyError, InvalidOperation, ZeroDivisionError) as exc:
+            raise ValueError("exchange rate payload missing required currencies") from exc
+        return usd_cny, eur_cny
 
 
 class LiveExchangeRateProvider:
