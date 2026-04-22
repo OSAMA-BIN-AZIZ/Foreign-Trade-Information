@@ -5,6 +5,7 @@ from email.utils import parsedate_to_datetime
 from typing import Protocol
 from urllib.parse import urlparse
 from xml.etree import ElementTree as ET
+import logging
 
 import httpx
 
@@ -19,6 +20,7 @@ class RssNewsProvider:
     def __init__(self, feed_urls: list[str] | None = None, timeout: float = 8.0) -> None:
         self.feed_urls = feed_urls or []
         self.timeout = timeout
+        self.logger = logging.getLogger(__name__)
 
     async def fetch(self, limit: int) -> list[NewsItem]:
         if not self.feed_urls:
@@ -35,11 +37,15 @@ class RssNewsProvider:
                 try:
                     resp = await client.get(feed_url)
                     resp.raise_for_status()
-                    items.extend(self._parse_rss(resp.text, feed_url))
-                except Exception:
+                    parsed = self._parse_rss(resp.text, feed_url)
+                    items.extend(parsed)
+                    self.logger.info("RSS源抓取成功", extra={"event": "rss_feed_ok", "status": "ok", "feed_url": feed_url, "fetched": len(parsed)})
+                except Exception as exc:
+                    self.logger.warning("RSS源抓取失败", extra={"event": "rss_feed_fail", "status": "warn", "feed_url": feed_url, "error": str(exc)})
                     continue
 
         if not items:
+            self.logger.warning("全部RSS源失败，使用Mock新闻", extra={"event": "rss_all_failed", "status": "warn"})
             return self._mock_items(limit)
 
         items.sort(key=lambda x: x.published_at or datetime.min.replace(tzinfo=timezone.utc), reverse=True)

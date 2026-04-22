@@ -113,6 +113,7 @@ async def run_daily_publish(target_date: date | None = None, build_only: bool = 
 
     fetched_items = await news_provider.fetch(settings.news_max_items * 4)
     items = filter_trade_related(fetched_items)
+    logger.info("新闻抓取完成", extra={"event": "news_fetch_stats", "date": d.isoformat(), "status": "ok", "fetched": len(fetched_items), "filtered": len(items)})
     news_fallback_used = bool(fetched_items) and all((it.source or "").startswith("Mock") for it in fetched_items)
     if news_fallback_used:
         logger.warning("新闻源不可用，已回退到降级数据", extra={"event": "fetch_news_fallback_mock", "date": d.isoformat(), "status": "warn"})
@@ -131,6 +132,9 @@ async def run_daily_publish(target_date: date | None = None, build_only: bool = 
             i.tags = list(tags)
 
     logger.info("新闻获取成功", extra={"event": "fetch_news_ok", "date": d.isoformat(), "status": "ok"})
+    domestic_n = sum(1 for i in items if "国内" in (i.tags or []))
+    international_n = sum(1 for i in items if "国际" in (i.tags or []))
+    logger.info("新闻分区统计", extra={"event": "news_partition_stats", "date": d.isoformat(), "status": "ok", "domestic": domestic_n, "international": international_n})
 
     notes: list[str] = []
     if rate_fallback_used:
