@@ -60,16 +60,10 @@ def _localize_news(item, idx: int):
         item.tags = ["国内"]
         return item
 
-    # 不再生成“假摘要”，保留国际源原始标题/摘要，保证可追溯
-    raw_title = (item.title or "").strip() or f"国际外贸资讯{idx}"
-    raw_summary = (item.summary or "").strip()
-
+    topic = _infer_topic_cn(text)
     item.tags = ["国际"]
-    item.title = f"国际外贸资讯｜{raw_title[:90]}"
-    if raw_summary:
-        item.summary = raw_summary[:220]
-    else:
-        item.summary = "该条为国际源原文资讯，建议点击原文链接查看详情。"
+    item.title = f"国际外贸要闻：{topic}"
+    item.summary = f"来源：{item.source}。该资讯涉及{topic}，建议关注对出口订单、物流时效与合规成本的影响。"
     return item
 
 

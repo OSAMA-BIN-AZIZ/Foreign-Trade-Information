@@ -9,29 +9,8 @@
 
 ---
 
-## 🇨🇳 国内外贸要闻
-{% set domestic = domestic_items if domestic_items is defined and domestic_items else [] %}
-{% if domestic %}
-{% for item in domestic %}
-### {{ loop.index }}｜{{ item.title }}
-{{ item.summary }}
-
-来源：{{ item.source }}{% if item.url %} ｜ 原文：{{ item.url }}{% endif %}
-
-{% endfor %}
-{% else %}
-- 暂无高相关国内外贸新闻（已自动过滤低相关资讯）。
-{% endif %}
-
-## 🌍 国际外贸影响事件
-{% set global_news = international_items if international_items is defined else [] %}
-{% if global_news %}
-{% for item in global_news %}
-### {{ loop.index }}｜{{ item.title }}
-{{ item.summary }}
-
-来源：{{ item.source }}{% if item.url %} ｜ 原文：{{ item.url }}{% endif %}
-
+{% for item in news_items %}
+{{ loop.index }}. {{ item.title }}{% if item.summary %}：{{ item.summary }}{% endif %}  
 {% endfor %}
 {% else %}
 - 暂无高相关国际外贸事件（已自动过滤低相关资讯）。

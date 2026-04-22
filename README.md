@@ -82,23 +82,7 @@ python -m app.cli scheduler
 - 若外部源不可用，会在内容中显示降级提示（Mock）。
 - 对非中文新闻会自动生成中文标题与中文摘要，适配微信公众号发布。
 - 模板按“国内/国际”分区展示，排版更简洁。
-- 默认每次尽量保留 20 条高相关资讯（不足时会降级补充并提示）。
-
-## 新闻源建议（中文 + 国际）
-- 优先配置 `NEWS_CN_RSS_URLS`（国内中文源）和 `NEWS_GLOBAL_RSS_URLS`（国际源）。
-- `NEWS_CN_MIN_ITEMS` 可控制最终列表里至少保留多少条中文资讯（默认 4）。
-- 若外部源不可用，会在内容中显示降级提示（Mock）。
-- 对非中文新闻会自动生成中文标题与中文摘要，适配微信公众号发布。
-- 模板按“国内/国际”分区展示，排版更简洁。
-- 默认每次尽量保留 20 条高相关资讯（不足时会降级补充并提示）。
-
-## 新闻源建议（中文 + 国际）
-- 优先配置 `NEWS_CN_RSS_URLS`（国内中文源）和 `NEWS_GLOBAL_RSS_URLS`（国际源）。
-- `NEWS_CN_MIN_ITEMS` 可控制最终列表里至少保留多少条中文资讯（默认 4）。
-- 若外部源不可用，会在内容中显示降级提示（Mock）。
-- 对非中文新闻会自动生成中文标题与中文摘要，适配微信公众号发布。
-- 模板按“国内/国际”分区展示，排版更简洁。
-- 默认每次尽量保留 20 条高相关资讯（不足时会降级补充并提示）。
+- 默认每次尽量保留 12 条高相关资讯（不足时会降级补充并提示）。
 
 ## 个人主体账号建议（重点）
 - 建议先使用 `WECHAT_USE_DRAFT_ONLY=true`，确保稳定进入草稿箱。
@@ -135,10 +119,23 @@ python -m app.cli scheduler
 
 ```env
 NEWS_CN_RSS_URLS=https://www.chinanews.com.cn/rss/scroll-news.xml,https://www.chinanews.com.cn/rss/finance.xml,https://www.chinanews.com.cn/rss/cj-yw.xml
-NEWS_GLOBAL_RSS_URLS=https://news.un.org/feed/subscribe/en/news/all/rss.xml,https://www.wto.org/english/news_e/news_e.xml,https://www.imf.org/en/News/RSS,https://www.aljazeera.com/xml/rss/all.xml
+NEWS_GLOBAL_RSS_URLS=https://www.chinanews.com.cn/rss/world.xml,https://www.chinanews.com.cn/rss/gj-sh2.xml,https://news.un.org/feed/subscribe/en/news/all/rss.xml,https://www.wto.org/english/news_e/news_e.xml
 ```
 
 说明：
 - 国内源偏向财经/通关/产业新闻；
 - 国际源覆盖多边组织与国际新闻机构；
 - 若个别源返回 403/404，系统会自动降级并记录日志。
+
+
+## 这类“外贸速览”常见信息来源（可参考）
+从你给的样例看，通常会混合以下来源：
+- **国内官方/机构**：海关总署、商务部、各地口岸/港口、人民银行（LPR）、各地统计发布；
+- **国际组织/监管**：WTO、欧盟、各国海关/税务/商务部公告；
+- **主流媒体快讯**：路透、联合国新闻、区域财经媒体；
+- **平台与企业公告**：TikTok Shop、微信支付、航运/港口公司公告。
+
+要做成类似样式，建议：
+1. 固定每天 12 条；
+2. 先按“政策/关税/口岸/航运/平台规则”关键词过滤；
+3. 统一一句话摘要风格（事实 + 影响）。

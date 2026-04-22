@@ -33,10 +33,10 @@ class Settings(BaseSettings):
     # 兼容旧配置：news_rss_urls 仍可用；建议分别配置国内/国际源。
     news_rss_urls: str = ""
     news_cn_rss_urls: str = "https://www.chinanews.com.cn/rss/scroll-news.xml,https://www.chinanews.com.cn/rss/finance.xml,https://www.chinanews.com.cn/rss/cj-yw.xml"
-    news_global_rss_urls: str = "https://news.un.org/feed/subscribe/en/news/all/rss.xml,https://www.wto.org/english/news_e/news_e.xml,https://www.imf.org/en/News/RSS,https://www.aljazeera.com/xml/rss/all.xml"
+    news_global_rss_urls: str = "https://www.chinanews.com.cn/rss/world.xml,https://www.chinanews.com.cn/rss/gj-sh2.xml,https://news.un.org/feed/subscribe/en/news/all/rss.xml,https://www.wto.org/english/news_e/news_e.xml"
     news_fetch_timeout: float = 8.0
-    news_max_items: int = Field(default=20, ge=1)
-    news_min_items: int = Field(default=20, ge=1)
+    news_max_items: int = Field(default=12, ge=1)
+    news_min_items: int = Field(default=12, ge=1)
     news_cn_min_items: int = Field(default=4, ge=0)
 
     cover_image_path: Path = Path("./assets/cover-default.jpg")
