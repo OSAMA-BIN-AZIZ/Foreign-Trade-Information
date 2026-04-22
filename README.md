@@ -55,7 +55,17 @@ python -m app.cli scheduler
 ## 已知限制
 - 不同公众号主体权限不同，自动发布能力不保证可用。
 - 农历当前为占位实现，可替换为真实日历库。
+- 汇率默认 `exchange_rate_provider=auto`：优先实时拉取，失败后降级缓存/Mock。
+- 新闻 `news_source_mode=rss` 默认拉取外部 RSS，失败时才降级为 Mock。
 
+
+
+## 新闻源建议（中文 + 国际）
+- 优先配置 `NEWS_CN_RSS_URLS`（国内中文源）和 `NEWS_GLOBAL_RSS_URLS`（国际源）。
+- `NEWS_CN_MIN_ITEMS` 可控制最终列表里至少保留多少条中文资讯（默认 4）。
+- 若外部源不可用，会在内容中显示降级提示（Mock）。
+- 对非中文新闻会自动生成中文标题与中文摘要，适配微信公众号发布。
+- 模板按“国内/国际”分区展示，排版更简洁。
 
 ## 个人主体账号建议（重点）
 - 建议先使用 `WECHAT_USE_DRAFT_ONLY=true`，确保稳定进入草稿箱。
