@@ -123,6 +123,13 @@ async def run_daily_publish(target_date: date | None = None, build_only: bool = 
     target_n = max(settings.news_min_items, min(len(items), settings.news_max_items))
     items = _select_balanced_news(items, total=target_n, cn_min=settings.news_cn_min_items)
     items = [_localize_news(i, idx=n) for n, i in enumerate(items, start=1)]
+    domestic_count = sum(1 for i in items if "国内" in (i.tags or []))
+    if domestic_count == 0 and items:
+        for i in items[: min(settings.news_cn_min_items, len(items))]:
+            tags = set(i.tags or [])
+            tags.add("国内")
+            i.tags = list(tags)
+
     logger.info("新闻获取成功", extra={"event": "fetch_news_ok", "date": d.isoformat(), "status": "ok"})
 
     notes: list[str] = []
@@ -136,6 +143,10 @@ async def run_daily_publish(target_date: date | None = None, build_only: bool = 
         notes.append("未检索到足量高相关外贸资讯，已补充可能相关事件")
     if not any("国际" in (i.tags or []) for i in items):
         notes.append("当前未抓到可用国际源，建议检查 NEWS_GLOBAL_RSS_URLS 或网络")
+    if not any("国内" in (i.tags or []) for i in items):
+        notes.append("当前未抓到可用国内源，建议检查 NEWS_CN_RSS_URLS 或网络")
+    elif fetched_items and not any("国内" in (i.tags or []) for i in filter_trade_related(fetched_items)):
+        notes.append("国内源相关度偏低，已用国际外贸事件补充展示")
 
     digest = DailyDigest(
         title=f"{format_gregorian(d)}｜外贸与跨境资讯速览",

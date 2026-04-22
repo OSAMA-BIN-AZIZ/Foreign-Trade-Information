@@ -89,3 +89,9 @@ python -m app.cli scheduler
 - 若想尝试自动发布，使用 `PUBLISH_MODE=safe_auto`，权限不足时会自动降级为仅草稿。
 - 先跑 `python -m app.cli check-wechat --mock false` 做真实连通性检查（token/封面上传/草稿创建）。
 - 再跑 `python -m app.cli run-once`，确认 `data/output/` 产物和草稿创建都正常。
+
+
+## 为什么国内或国际栏目为空
+- 先看正文 `⚠` 提示：若提示某一类源不可用，通常是 RSS 源地址不可达或被限流。
+- 检查 `.env` 中 `NEWS_CN_RSS_URLS` / `NEWS_GLOBAL_RSS_URLS` 是否可访问。
+- 你设置 `NEWS_MAX_ITEMS=12`、`NEWS_MIN_ITEMS=8` 是生效的；条数不足通常是“抓取成功但被外贸相关过滤剔除”。

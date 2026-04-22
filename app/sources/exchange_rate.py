@@ -22,7 +22,7 @@ class MockExchangeRateProvider:
             usd_cny=Decimal("6.9000"),
             eur_cny=Decimal("7.5000"),
             as_of=datetime.now(timezone.utc),
-            stale=False,
+            stale=True,
         )
 
 
