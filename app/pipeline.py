@@ -5,6 +5,7 @@ import logging
 import re
 from datetime import date, datetime
 from pathlib import Path
+from urllib.parse import urlparse
 
 from app.config import settings
 from app.exceptions import PublishPermissionError
@@ -77,6 +78,15 @@ def _select_balanced_news(items, total: int, cn_min: int):
     return picked[:total]
 
 
+def _source_host(source_or_url: str) -> str:
+    raw = (source_or_url or "").strip()
+    if not raw:
+        return ""
+    if "://" in raw:
+        return (urlparse(raw).netloc or "").lower()
+    return raw.lower()
+
+
 
 async def run_daily_publish(target_date: date | None = None, build_only: bool = False, mock_wechat: bool = True) -> dict:
     d = target_date or date.today()
@@ -146,6 +156,10 @@ async def run_daily_publish(target_date: date | None = None, build_only: bool = 
     logger.info("新闻分区统计", extra={"event": "news_partition_stats", "date": d.isoformat(), "status": "ok", "domestic": domestic_n, "international": international_n})
 
     notes: list[str] = []
+    global_urls = [u.strip() for u in settings.news_global_rss_urls.split(",") if u.strip()]
+    global_hosts = {_source_host(u) for u in global_urls if _source_host(u)}
+    fetched_global_count = sum(1 for i in fetched_items if _source_host(i.source or "") in global_hosts)
+
     if rate_fallback_used:
         notes.append("汇率实时源不可用，当前为降级演示值（非最新）")
     elif rate.stale:
@@ -155,7 +169,12 @@ async def run_daily_publish(target_date: date | None = None, build_only: bool = 
     if fetched_items and not filter_trade_related(fetched_items):
         notes.append("未检索到足量高相关外贸资讯，已补充可能相关事件")
     if not any("国际" in (i.tags or []) for i in items):
-        notes.append("当前未抓到可用国际源，建议检查 NEWS_GLOBAL_RSS_URLS 或网络")
+        if not global_urls:
+            notes.append("未配置 NEWS_GLOBAL_RSS_URLS，国际资讯展示可能不足")
+        elif fetched_global_count == 0:
+            notes.append("当前未抓到可用国际源，建议检查 NEWS_GLOBAL_RSS_URLS 或网络")
+        else:
+            notes.append("已抓取国际源，但外贸相关度不足，未进入最终展示")
     if not any("国内" in (i.tags or []) for i in items):
         notes.append("当前未抓到可用国内源，建议检查 NEWS_CN_RSS_URLS 或网络")
     elif fetched_items and not any("国内" in (i.tags or []) for i in filter_trade_related(fetched_items)):

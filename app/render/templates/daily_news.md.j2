@@ -11,12 +11,9 @@
 
 {% for item in news_items %}
 {{ loop.index }}. {{ item.title }}{% if item.summary %}：{{ item.summary }}{% endif %}  
-{% else %}
-- 暂无高相关国际外贸事件（已自动过滤低相关资讯）。
 {% endfor %}
 
 ---
-
 {% if data_note %}
 > ⚠ {{ data_note }}
 {% endif %}

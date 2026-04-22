@@ -42,6 +42,12 @@ class RssNewsProvider:
             return [False]
         return [False, True] if self.proxy else [False]
 
+    def _client_kwargs(self, use_proxy: bool, headers: dict[str, str]) -> dict:
+        if use_proxy:
+            return {"timeout": self.timeout, "follow_redirects": True, "headers": headers, "proxy": self.proxy, "trust_env": False}
+        trust_env = self.proxy_mode != "off"
+        return {"timeout": self.timeout, "follow_redirects": True, "headers": headers, "proxy": None, "trust_env": trust_env}
+
     async def _fetch_feed_text(self, feed_url: str, headers: dict[str, str]) -> str:
         last_error: Exception | None = None
         user_agents = [
@@ -53,7 +59,7 @@ class RssNewsProvider:
             for attempt in range(1, self.retry_count + 1):
                 try:
                     req_headers = {**headers, "User-Agent": user_agents[(attempt - 1) % len(user_agents)]}
-                    async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True, headers=req_headers, proxy=(self.proxy if use_proxy else None), trust_env=True) as client:
+                    async with httpx.AsyncClient(**self._client_kwargs(use_proxy, req_headers)) as client:
                         resp = await client.get(feed_url)
                         resp.raise_for_status()
                         return resp.text
