@@ -135,6 +135,16 @@ async def run_daily_publish(target_date: date | None = None, build_only: bool = 
     if fetched_items and not filter_trade_related(fetched_items):
         notes.append("未检索到足量高相关外贸资讯，已补充可能相关事件")
 
+    notes: list[str] = []
+    if rate_fallback_used:
+        notes.append("汇率实时源不可用，已降级为缓存/Mock")
+    elif rate.stale:
+        notes.append("汇率为缓存数据，可能非最新")
+    if news_fallback_used:
+        notes.append("新闻源不可用或被限流，已降级为Mock示例")
+    if fetched_items and not filter_trade_related(fetched_items):
+        notes.append("未检索到足量高相关外贸资讯，已补充可能相关事件")
+
     digest = DailyDigest(
         title=f"{format_gregorian(d)}｜外贸与跨境资讯速览",
         date_text=format_gregorian(d),
