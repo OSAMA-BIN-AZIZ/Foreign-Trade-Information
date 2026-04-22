@@ -26,12 +26,14 @@ class Settings(BaseSettings):
     exchange_rate_timeout: float = 8.0
     outbound_http_proxy: str = ""
     outbound_proxy_mode: str = "auto"  # auto | on | off
+    fetch_retry_count: int = 2
+    fetch_retry_backoff_sec: float = 0.6
 
     news_source_mode: str = "rss"
     # 兼容旧配置：news_rss_urls 仍可用；建议分别配置国内/国际源。
     news_rss_urls: str = ""
-    news_cn_rss_urls: str = "https://www.chinanews.com.cn/rss/scroll-news.xml"
-    news_global_rss_urls: str = "https://news.un.org/feed/subscribe/en/news/all/rss.xml,https://www.aljazeera.com/xml/rss/all.xml"
+    news_cn_rss_urls: str = "https://www.chinanews.com.cn/rss/scroll-news.xml,https://www.chinanews.com.cn/rss/finance.xml,https://www.chinanews.com.cn/rss/cj-yw.xml"
+    news_global_rss_urls: str = "https://news.un.org/feed/subscribe/en/news/all/rss.xml,https://www.wto.org/english/news_e/news_e.xml,https://www.imf.org/en/News/RSS,https://www.aljazeera.com/xml/rss/all.xml"
     news_fetch_timeout: float = 8.0
     news_max_items: int = Field(default=20, ge=1)
     news_min_items: int = Field(default=20, ge=1)

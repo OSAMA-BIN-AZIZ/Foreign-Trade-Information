@@ -16,6 +16,8 @@
 ### {{ loop.index }}｜{{ item.title }}
 {{ item.summary }}
 
+来源：{{ item.source }}{% if item.url %} ｜ 原文：{{ item.url }}{% endif %}
+
 {% endfor %}
 {% else %}
 - 暂无高相关国内外贸新闻（已自动过滤低相关资讯）。
@@ -27,6 +29,8 @@
 {% for item in global_news %}
 ### {{ loop.index }}｜{{ item.title }}
 {{ item.summary }}
+
+来源：{{ item.source }}{% if item.url %} ｜ 原文：{{ item.url }}{% endif %}
 
 {% endfor %}
 {% else %}

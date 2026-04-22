@@ -60,10 +60,16 @@ def _localize_news(item, idx: int):
         item.tags = ["国内"]
         return item
 
-    topic = _infer_topic_cn(text)
+    # 不再生成“假摘要”，保留国际源原始标题/摘要，保证可追溯
+    raw_title = (item.title or "").strip() or f"国际外贸资讯{idx}"
+    raw_summary = (item.summary or "").strip()
+
     item.tags = ["国际"]
-    item.title = f"国际外贸动态{idx}：{topic}"
-    item.summary = f"该资讯来自国际公开新闻源，重点涉及{topic}，建议关注对出口订单、物流时效与收汇成本的影响。"
+    item.title = f"国际外贸资讯｜{raw_title[:90]}"
+    if raw_summary:
+        item.summary = raw_summary[:220]
+    else:
+        item.summary = "该条为国际源原文资讯，建议点击原文链接查看详情。"
     return item
 
 
@@ -82,7 +88,7 @@ async def run_daily_publish(target_date: date | None = None, build_only: bool = 
     d = target_date or date.today()
     rate_inner = MockExchangeRateProvider()
     if settings.exchange_rate_provider in {"live", "auto"}:
-        rate_inner = LiveExchangeRateProvider(timeout=settings.exchange_rate_timeout, proxy=settings.outbound_http_proxy, proxy_mode=settings.outbound_proxy_mode)
+        rate_inner = LiveExchangeRateProvider(timeout=settings.exchange_rate_timeout, proxy=settings.outbound_http_proxy, proxy_mode=settings.outbound_proxy_mode, retry_count=settings.fetch_retry_count, retry_backoff_sec=settings.fetch_retry_backoff_sec)
     rate_provider = CachedExchangeRateProvider(rate_inner, Path("data/cache/rates.json"))
 
     if settings.news_source_mode == "rss":
@@ -90,7 +96,7 @@ async def run_daily_publish(target_date: date | None = None, build_only: bool = 
         cn_urls = [u.strip() for u in settings.news_cn_rss_urls.split(",") if u.strip()]
         global_urls = [u.strip() for u in settings.news_global_rss_urls.split(",") if u.strip()]
         rss_urls = legacy_urls or (cn_urls + global_urls)
-        news_provider = RssNewsProvider(feed_urls=rss_urls, timeout=settings.news_fetch_timeout, proxy=settings.outbound_http_proxy, proxy_mode=settings.outbound_proxy_mode)
+        news_provider = RssNewsProvider(feed_urls=rss_urls, timeout=settings.news_fetch_timeout, proxy=settings.outbound_http_proxy, proxy_mode=settings.outbound_proxy_mode, retry_count=settings.fetch_retry_count, retry_backoff_sec=settings.fetch_retry_backoff_sec)
     else:
         news_provider = HttpJsonNewsProvider()
     state = SQLiteStateStore(settings.state_db)

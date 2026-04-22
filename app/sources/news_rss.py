@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from typing import Protocol
@@ -25,11 +26,13 @@ class RssNewsProvider:
             return f"网络错误: {exc.__class__.__name__}"
         return str(exc) or exc.__class__.__name__
 
-    def __init__(self, feed_urls: list[str] | None = None, timeout: float = 8.0, proxy: str = "", proxy_mode: str = "auto") -> None:
+    def __init__(self, feed_urls: list[str] | None = None, timeout: float = 8.0, proxy: str = "", proxy_mode: str = "auto", retry_count: int = 2, retry_backoff_sec: float = 0.6) -> None:
         self.feed_urls = feed_urls or []
         self.timeout = timeout
         self.proxy = proxy or None
         self.proxy_mode = proxy_mode
+        self.retry_count = max(1, retry_count)
+        self.retry_backoff_sec = retry_backoff_sec
         self.logger = logging.getLogger(__name__)
 
     def _proxy_attempts(self) -> list[bool]:
@@ -41,15 +44,24 @@ class RssNewsProvider:
 
     async def _fetch_feed_text(self, feed_url: str, headers: dict[str, str]) -> str:
         last_error: Exception | None = None
+        user_agents = [
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0 Safari/537.36",
+        ]
         for use_proxy in self._proxy_attempts():
-            try:
-                async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True, headers=headers, proxy=(self.proxy if use_proxy else None), trust_env=True) as client:
-                    resp = await client.get(feed_url)
-                    resp.raise_for_status()
-                    return resp.text
-            except Exception as exc:
-                last_error = exc
-                continue
+            for attempt in range(1, self.retry_count + 1):
+                try:
+                    req_headers = {**headers, "User-Agent": user_agents[(attempt - 1) % len(user_agents)]}
+                    async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True, headers=req_headers, proxy=(self.proxy if use_proxy else None), trust_env=True) as client:
+                        resp = await client.get(feed_url)
+                        resp.raise_for_status()
+                        return resp.text
+                except Exception as exc:
+                    last_error = exc
+                    if attempt < self.retry_count:
+                        await asyncio.sleep(self.retry_backoff_sec * attempt)
+                    continue
         detail = self._format_fetch_error(last_error) if last_error else "unknown"
         raise RuntimeError(f"feed request failed: {feed_url} ({detail})") from last_error
 
@@ -59,8 +71,6 @@ class RssNewsProvider:
 
         items: list[NewsItem] = []
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-            "(KHTML, like Gecko) Chrome/124.0 Safari/537.36",
             "Accept": "application/rss+xml, application/atom+xml, application/xml;q=0.9, */*;q=0.8",
         }
         for feed_url in self.feed_urls:

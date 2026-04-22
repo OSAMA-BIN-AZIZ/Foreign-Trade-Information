@@ -75,6 +75,7 @@ python -m app.cli scheduler
 - 新闻 `news_source_mode=rss` 默认拉取外部 RSS，失败时才降级为 Mock。
 
 
+
 ## 新闻源建议（中文 + 国际）
 - 优先配置 `NEWS_CN_RSS_URLS`（国内中文源）和 `NEWS_GLOBAL_RSS_URLS`（国际源）。
 - `NEWS_CN_MIN_ITEMS` 可控制最终列表里至少保留多少条中文资讯（默认 4）。
@@ -82,7 +83,6 @@ python -m app.cli scheduler
 - 对非中文新闻会自动生成中文标题与中文摘要，适配微信公众号发布。
 - 模板按“国内/国际”分区展示，排版更简洁。
 - 默认每次尽量保留 20 条高相关资讯（不足时会降级补充并提示）。
-
 
 ## 新闻源建议（中文 + 国际）
 - 优先配置 `NEWS_CN_RSS_URLS`（国内中文源）和 `NEWS_GLOBAL_RSS_URLS`（国际源）。
@@ -121,9 +121,24 @@ python -m app.cli scheduler
   - `on`：强制走代理
   - `off`：强制不走代理
 - 同时兼容系统环境变量 `HTTP_PROXY/HTTPS_PROXY`。
+- 若短时间二次抓取失败，可在 `.env` 增加 `FETCH_RETRY_COUNT=2`、`FETCH_RETRY_BACKOFF_SEC=0.6`。
 
 
 ## RSS源抓取失败常见原因
 - `HTTP 404`：RSS 地址已失效或页面并非 RSS。
 - `HTTP 403`：被目标站点拦截（常见于无代理或UA策略限制）。
 - `网络错误`：本地网络或代理不可达。
+
+
+## 高质量外贸RSS源（可直接用）
+建议把以下列表复制到 `.env`：
+
+```env
+NEWS_CN_RSS_URLS=https://www.chinanews.com.cn/rss/scroll-news.xml,https://www.chinanews.com.cn/rss/finance.xml,https://www.chinanews.com.cn/rss/cj-yw.xml
+NEWS_GLOBAL_RSS_URLS=https://news.un.org/feed/subscribe/en/news/all/rss.xml,https://www.wto.org/english/news_e/news_e.xml,https://www.imf.org/en/News/RSS,https://www.aljazeera.com/xml/rss/all.xml
+```
+
+说明：
+- 国内源偏向财经/通关/产业新闻；
+- 国际源覆盖多边组织与国际新闻机构；
+- 若个别源返回 403/404，系统会自动降级并记录日志。
