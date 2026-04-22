@@ -11,13 +11,20 @@ class ArticleBuilder:
         self.renderer = MarkdownRenderer(template_dir)
 
     def build(self, digest: DailyDigest) -> DailyDigest:
+        domestic_items = [i for i in digest.news_items if "国内" in (i.tags or [])]
+        international_items = [i for i in digest.news_items if "国际" in (i.tags or [])]
         md = self.renderer.render_markdown(
             {
                 "title": digest.title,
                 "date_line": digest.lunar_text,
                 "usd_cny": digest.exchange_rate.usd_cny,
                 "eur_cny": digest.exchange_rate.eur_cny,
+                "rate_as_of": digest.exchange_rate.as_of.astimezone().strftime("%Y-%m-%d %H:%M"),
+                "rate_stale": digest.exchange_rate.stale,
                 "news_items": digest.news_items,
+                "domestic_items": domestic_items,
+                "international_items": international_items,
+                "data_note": digest.data_note,
             }
         )
         html = replace_local_images(self.renderer.markdown_to_html(md))

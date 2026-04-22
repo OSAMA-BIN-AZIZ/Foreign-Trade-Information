@@ -1,8 +1,14 @@
 from pathlib import Path
+from typing import Callable
+
 from bs4 import BeautifulSoup
 
 
-def replace_local_images(html: str, uploader: callable | None = None, cache: dict[str, str] | None = None) -> str:
+def replace_local_images(
+    html: str,
+    uploader: Callable[[str], str] | None = None,
+    cache: dict[str, str] | None = None,
+) -> str:
     cache = cache or {}
     soup = BeautifulSoup(html, "lxml")
     for img in soup.find_all("img"):
