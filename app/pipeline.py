@@ -82,7 +82,7 @@ async def run_daily_publish(target_date: date | None = None, build_only: bool = 
     d = target_date or date.today()
     rate_inner = MockExchangeRateProvider()
     if settings.exchange_rate_provider in {"live", "auto"}:
-        rate_inner = LiveExchangeRateProvider(timeout=settings.exchange_rate_timeout)
+        rate_inner = LiveExchangeRateProvider(timeout=settings.exchange_rate_timeout, proxy=settings.outbound_http_proxy)
     rate_provider = CachedExchangeRateProvider(rate_inner, Path("data/cache/rates.json"))
 
     if settings.news_source_mode == "rss":
@@ -90,7 +90,7 @@ async def run_daily_publish(target_date: date | None = None, build_only: bool = 
         cn_urls = [u.strip() for u in settings.news_cn_rss_urls.split(",") if u.strip()]
         global_urls = [u.strip() for u in settings.news_global_rss_urls.split(",") if u.strip()]
         rss_urls = legacy_urls or (cn_urls + global_urls)
-        news_provider = RssNewsProvider(feed_urls=rss_urls, timeout=settings.news_fetch_timeout)
+        news_provider = RssNewsProvider(feed_urls=rss_urls, timeout=settings.news_fetch_timeout, proxy=settings.outbound_http_proxy)
     else:
         news_provider = HttpJsonNewsProvider()
     state = SQLiteStateStore(settings.state_db)
@@ -109,7 +109,16 @@ async def run_daily_publish(target_date: date | None = None, build_only: bool = 
             logger.warning("汇率实时源不可用，已回退到降级数据", extra={"event": "fetch_rates_fallback_mock", "date": d.isoformat(), "status": "warn"})
         else:
             raise
-    logger.info("汇率获取成功", extra={"event": "fetch_rates_ok", "date": d.isoformat(), "status": "ok"})
+    rate_source = "live"
+    if rate_fallback_used:
+        rate_source = "mock"
+    elif rate.stale:
+        rate_source = "cache"
+
+    if rate.stale:
+        logger.warning("汇率为非实时数据", extra={"event": "fetch_rates_stale", "date": d.isoformat(), "status": "warn", "rate_stale": True, "rate_source": rate_source, "rate_as_of": rate.as_of.isoformat()})
+    else:
+        logger.info("汇率获取成功", extra={"event": "fetch_rates_ok", "date": d.isoformat(), "status": "ok", "rate_stale": False, "rate_source": rate_source, "rate_as_of": rate.as_of.isoformat()})
 
     fetched_items = await news_provider.fetch(settings.news_max_items * 4)
     items = filter_trade_related(fetched_items)
@@ -172,6 +181,7 @@ async def run_daily_publish(target_date: date | None = None, build_only: bool = 
             "html": str(settings.output_dir / f"{d.isoformat()}.html"),
             "rate_fallback_used": rate_fallback_used,
             "news_fallback_used": news_fallback_used,
+            "rate_source": rate_source,
         }
 
     md_path, html_path = write_output(settings.output_dir, d, digest.markdown, digest.html)
@@ -184,6 +194,7 @@ async def run_daily_publish(target_date: date | None = None, build_only: bool = 
             "html": str(html_path),
             "rate_fallback_used": rate_fallback_used,
             "news_fallback_used": news_fallback_used,
+            "rate_source": rate_source,
         }
 
     cover_path = settings.cover_image_path if settings.cover_image_path.exists() else Path("assets/cover-default.jpg")
@@ -211,6 +222,7 @@ async def run_daily_publish(target_date: date | None = None, build_only: bool = 
         "html": str(html_path),
         "rate_fallback_used": rate_fallback_used,
         "news_fallback_used": news_fallback_used,
+        "rate_source": rate_source,
     }
     if mode == "draft_only":
         return result

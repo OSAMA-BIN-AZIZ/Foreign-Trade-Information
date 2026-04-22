@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     exchange_rate_provider: str = "auto"  # auto | live | mock
     exchange_rate_base: str = "CNY"
     exchange_rate_timeout: float = 8.0
+    outbound_http_proxy: str = ""
 
     news_source_mode: str = "rss"
     # 兼容旧配置：news_rss_urls 仍可用；建议分别配置国内/国际源。

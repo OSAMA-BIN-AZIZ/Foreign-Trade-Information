@@ -9,8 +9,6 @@ import logging
 
 import httpx
 
-import httpx
-
 from app.models import ExchangeRate
 
 logger = logging.getLogger(__name__)
@@ -81,8 +79,9 @@ class MockExchangeRateProvider:
 class LiveExchangeRateProvider:
     """Fetch live FX data with multi-source fallback."""
 
-    def __init__(self, timeout: float = 8.0) -> None:
+    def __init__(self, timeout: float = 8.0, proxy: str = "") -> None:
         self.timeout = timeout
+        self.proxy = proxy or None
 
     async def fetch(self) -> ExchangeRate:
         last_error: Exception | None = None
@@ -99,7 +98,7 @@ class LiveExchangeRateProvider:
 
     async def _fetch_from_open_er_api(self) -> ExchangeRate:
         url = "https://open.er-api.com/v6/latest/USD"
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
+        async with httpx.AsyncClient(timeout=self.timeout, proxy=self.proxy, trust_env=True) as client:
             resp = await client.get(url)
             resp.raise_for_status()
             payload = resp.json()
@@ -115,7 +114,7 @@ class LiveExchangeRateProvider:
     async def _fetch_from_frankfurter(self) -> ExchangeRate:
         # 使用 EUR 为基准，直接拿到 EUR/CNY，减少交叉换算误差
         url = "https://api.frankfurter.app/latest?from=EUR&to=CNY,USD"
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
+        async with httpx.AsyncClient(timeout=self.timeout, proxy=self.proxy, trust_env=True) as client:
             resp = await client.get(url)
             resp.raise_for_status()
             payload = resp.json()
@@ -135,7 +134,7 @@ class LiveExchangeRateProvider:
 
     async def _fetch_from_exchange_rate_api(self) -> ExchangeRate:
         url = "https://api.exchangerate-api.com/v4/latest/USD"
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
+        async with httpx.AsyncClient(timeout=self.timeout, proxy=self.proxy, trust_env=True) as client:
             resp = await client.get(url)
             resp.raise_for_status()
             payload = resp.json()
@@ -170,8 +169,9 @@ class CachedExchangeRateProvider:
             self.cache_file.parent.mkdir(parents=True, exist_ok=True)
             self.cache_file.write_text(rate.model_dump_json(), encoding="utf-8")
             return rate
-        except Exception:
+        except Exception as exc:
             if self.cache_file.exists():
+                logger.warning("实时汇率失败，使用本地缓存", extra={"event": "fx_use_cache", "status": "warn", "error": str(exc)})
                 data = json.loads(self.cache_file.read_text(encoding="utf-8"))
                 return ExchangeRate(**data, stale=True)
             raise

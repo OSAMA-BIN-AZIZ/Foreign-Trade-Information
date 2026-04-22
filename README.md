@@ -74,6 +74,13 @@ python -m app.cli scheduler
 - 汇率默认 `exchange_rate_provider=auto`：优先实时拉取，失败后降级缓存/Mock。
 - 新闻 `news_source_mode=rss` 默认拉取外部 RSS，失败时才降级为 Mock。
 
+## 新闻源建议（中文 + 国际）
+- 优先配置 `NEWS_CN_RSS_URLS`（国内中文源）和 `NEWS_GLOBAL_RSS_URLS`（国际源）。
+- `NEWS_CN_MIN_ITEMS` 可控制最终列表里至少保留多少条中文资讯（默认 4）。
+- 若外部源不可用，会在内容中显示降级提示（Mock）。
+- 对非中文新闻会自动生成中文标题与中文摘要，适配微信公众号发布。
+- 模板按“国内/国际”分区展示，排版更简洁。
+- 默认每次尽量保留 20 条高相关资讯（不足时会降级补充并提示）。
 
 
 ## 新闻源建议（中文 + 国际）
@@ -95,3 +102,9 @@ python -m app.cli scheduler
 - 先看正文 `⚠` 提示：若提示某一类源不可用，通常是 RSS 源地址不可达或被限流。
 - 检查 `.env` 中 `NEWS_CN_RSS_URLS` / `NEWS_GLOBAL_RSS_URLS` 是否可访问。
 - 你设置 `NEWS_MAX_ITEMS=12`、`NEWS_MIN_ITEMS=8` 是生效的；条数不足通常是“抓取成功但被外贸相关过滤剔除”。
+
+
+## 中国网络环境抓取建议
+- 部分国际 RSS/API 可能在中国大陆访问不稳定，建议配置代理。
+- 可在 `.env` 中设置：`OUTBOUND_HTTP_PROXY=http://127.0.0.1:7890`。
+- 程序会优先使用 `OUTBOUND_HTTP_PROXY`，同时兼容系统环境变量 `HTTP_PROXY/HTTPS_PROXY`。

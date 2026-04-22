@@ -17,9 +17,10 @@ class NewsProvider(Protocol):
 
 
 class RssNewsProvider:
-    def __init__(self, feed_urls: list[str] | None = None, timeout: float = 8.0) -> None:
+    def __init__(self, feed_urls: list[str] | None = None, timeout: float = 8.0, proxy: str = "") -> None:
         self.feed_urls = feed_urls or []
         self.timeout = timeout
+        self.proxy = proxy or None
         self.logger = logging.getLogger(__name__)
 
     async def fetch(self, limit: int) -> list[NewsItem]:
@@ -32,7 +33,7 @@ class RssNewsProvider:
             "(KHTML, like Gecko) Chrome/124.0 Safari/537.36",
             "Accept": "application/rss+xml, application/atom+xml, application/xml;q=0.9, */*;q=0.8",
         }
-        async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True, headers=headers) as client:
+        async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True, headers=headers, proxy=self.proxy, trust_env=True) as client:
             for feed_url in self.feed_urls:
                 try:
                     resp = await client.get(feed_url)

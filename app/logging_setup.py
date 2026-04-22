@@ -12,7 +12,7 @@ class JsonFormatter(logging.Formatter):
         }
         for key in (
             "event", "date", "trace_id", "status", "provider", "source", "feed_url",
-            "fetched", "filtered", "domestic", "international", "error", "duration_ms",
+            "fetched", "filtered", "domestic", "international", "error", "duration_ms", "rate_stale", "rate_as_of", "rate_source",
         ):
             if hasattr(record, key):
                 payload[key] = getattr(record, key)
