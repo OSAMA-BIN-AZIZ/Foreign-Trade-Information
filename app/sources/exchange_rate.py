@@ -19,8 +19,8 @@ class MockExchangeRateProvider:
     async def fetch(self) -> ExchangeRate:
         return ExchangeRate(
             base="CNY",
-            usd_cny=Decimal("7.2100"),
-            eur_cny=Decimal("7.8900"),
+            usd_cny=Decimal("6.9000"),
+            eur_cny=Decimal("7.5000"),
             as_of=datetime.now(timezone.utc),
             stale=False,
         )
@@ -34,7 +34,7 @@ class LiveExchangeRateProvider:
 
     async def fetch(self) -> ExchangeRate:
         last_error: Exception | None = None
-        for loader in (self._fetch_from_open_er_api, self._fetch_from_frankfurter):
+        for loader in (self._fetch_from_open_er_api, self._fetch_from_frankfurter, self._fetch_from_exchange_rate_api):
             try:
                 return await loader()
             except Exception as exc:
@@ -70,6 +70,22 @@ class LiveExchangeRateProvider:
         as_of = datetime.fromisoformat(f"{date_str}T00:00:00+00:00") if date_str else datetime.now(timezone.utc)
         return ExchangeRate(base="CNY", usd_cny=usd_cny, eur_cny=eur_cny, as_of=as_of, stale=False)
 
+
+    async def _fetch_from_exchange_rate_api(self) -> ExchangeRate:
+        url = "https://api.exchangerate-api.com/v4/latest/USD"
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+            payload = resp.json()
+
+        rates = payload.get("rates") or {}
+        usd_cny, eur_cny = self._extract_usd_eur_cny(rates)
+        time_str = payload.get("time_last_updated") or payload.get("date")
+        if isinstance(time_str, str) and len(time_str) >= 10:
+            as_of = datetime.fromisoformat(f"{time_str[:10]}T00:00:00+00:00")
+        else:
+            as_of = datetime.now(timezone.utc)
+        return ExchangeRate(base="CNY", usd_cny=usd_cny, eur_cny=eur_cny, as_of=as_of, stale=False)
     @staticmethod
     def _extract_usd_eur_cny(rates: dict) -> tuple[Decimal, Decimal]:
         try:

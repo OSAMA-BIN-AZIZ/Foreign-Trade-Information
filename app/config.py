@@ -31,8 +31,8 @@ class Settings(BaseSettings):
     news_cn_rss_urls: str = "https://www.yicai.com/rss.xml,https://www.chinanews.com.cn/rss/scroll-news.xml"
     news_global_rss_urls: str = "https://news.un.org/feed/subscribe/en/news/all/rss.xml,https://www.aljazeera.com/xml/rss/all.xml"
     news_fetch_timeout: float = 8.0
-    news_max_items: int = Field(default=12, ge=1)
-    news_min_items: int = Field(default=8, ge=1)
+    news_max_items: int = Field(default=20, ge=1)
+    news_min_items: int = Field(default=20, ge=1)
     news_cn_min_items: int = Field(default=4, ge=0)
 
     cover_image_path: Path = Path("./assets/cover-default.jpg")

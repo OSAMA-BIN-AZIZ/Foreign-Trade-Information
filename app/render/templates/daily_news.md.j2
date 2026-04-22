@@ -33,17 +33,6 @@
 - 暂无高相关国际外贸事件（已自动过滤低相关资讯）。
 {% endif %}
 
-## 🌍 国际外贸要闻
-{% set global_news = international_items if international_items is defined else [] %}
-{% if global_news %}
-{% for item in global_news %}
-{{ loop.index }}. **{{ item.title }}**  
-   {{ item.summary }}
-{% endfor %}
-{% else %}
-1. 今日暂无可用国际资讯，系统将持续抓取更新。
-{% endif %}
-
 ---
 {% if data_note %}
 > ⚠ {{ data_note }}

@@ -37,7 +37,7 @@ def deduplicate_news(items: list[NewsItem]) -> list[NewsItem]:
         norm = normalize_title(item.title)
         if norm in seen:
             continue
-        if any(SequenceMatcher(None, norm, t).ratio() > 0.9 for t in seen):
+        if any(SequenceMatcher(None, norm, t).ratio() > 0.97 for t in seen):
             continue
         seen.append(norm)
         unique.append(item)

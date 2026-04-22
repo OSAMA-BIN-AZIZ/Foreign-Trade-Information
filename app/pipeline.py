@@ -106,16 +106,16 @@ async def run_daily_publish(target_date: date | None = None, build_only: bool = 
             rate = await MockExchangeRateProvider().fetch()
             rate.stale = True
             rate_fallback_used = True
-            logger.warning("fetch_rates_fallback_mock", extra={"event": "fetch_rates_fallback_mock", "date": d.isoformat(), "status": "warn"})
+            logger.warning("汇率实时源不可用，已回退到降级数据", extra={"event": "fetch_rates_fallback_mock", "date": d.isoformat(), "status": "warn"})
         else:
             raise
-    logger.info("fetch_rates_ok", extra={"event": "fetch_rates_ok", "date": d.isoformat(), "status": "ok"})
+    logger.info("汇率获取成功", extra={"event": "fetch_rates_ok", "date": d.isoformat(), "status": "ok"})
 
-    fetched_items = await news_provider.fetch(settings.news_max_items * 2)
+    fetched_items = await news_provider.fetch(settings.news_max_items * 4)
     items = filter_trade_related(fetched_items)
     news_fallback_used = bool(fetched_items) and all((it.source or "").startswith("Mock") for it in fetched_items)
     if news_fallback_used:
-        logger.warning("fetch_news_fallback_mock", extra={"event": "fetch_news_fallback_mock", "date": d.isoformat(), "status": "warn"})
+        logger.warning("新闻源不可用，已回退到降级数据", extra={"event": "fetch_news_fallback_mock", "date": d.isoformat(), "status": "warn"})
     if not items and fetched_items:
         items = fetched_items[: settings.news_min_items]
 
@@ -123,7 +123,17 @@ async def run_daily_publish(target_date: date | None = None, build_only: bool = 
     target_n = max(settings.news_min_items, min(len(items), settings.news_max_items))
     items = _select_balanced_news(items, total=target_n, cn_min=settings.news_cn_min_items)
     items = [_localize_news(i, idx=n) for n, i in enumerate(items, start=1)]
-    logger.info("fetch_news_ok", extra={"event": "fetch_news_ok", "date": d.isoformat(), "status": "ok"})
+    logger.info("新闻获取成功", extra={"event": "fetch_news_ok", "date": d.isoformat(), "status": "ok"})
+
+    notes: list[str] = []
+    if rate_fallback_used:
+        notes.append("汇率实时源不可用，当前为降级演示值（非最新）")
+    elif rate.stale:
+        notes.append("汇率为缓存数据，可能非最新")
+    if news_fallback_used:
+        notes.append("新闻源不可用或被限流，已降级为Mock示例")
+    if fetched_items and not filter_trade_related(fetched_items):
+        notes.append("未检索到足量高相关外贸资讯，已补充可能相关事件")
 
     notes: list[str] = []
     if rate_fallback_used:
@@ -158,7 +168,7 @@ async def run_daily_publish(target_date: date | None = None, build_only: bool = 
         }
 
     md_path, html_path = write_output(settings.output_dir, d, digest.markdown, digest.html)
-    logger.info("render_ok", extra={"event": "render_ok", "date": d.isoformat(), "status": "ok"})
+    logger.info("内容渲染完成", extra={"event": "render_ok", "date": d.isoformat(), "status": "ok"})
 
     if build_only:
         return {
@@ -171,7 +181,7 @@ async def run_daily_publish(target_date: date | None = None, build_only: bool = 
 
     cover_path = settings.cover_image_path if settings.cover_image_path.exists() else Path("assets/cover-default.jpg")
     thumb_media_id = await upload_cover(client, str(cover_path))
-    logger.info("upload_cover_ok", extra={"event": "upload_cover_ok", "date": d.isoformat(), "status": "ok"})
+    logger.info("封面上传成功", extra={"event": "upload_cover_ok", "date": d.isoformat(), "status": "ok"})
 
     article = DraftArticle(
         title=digest.title,
@@ -184,7 +194,7 @@ async def run_daily_publish(target_date: date | None = None, build_only: bool = 
     )
     draft_media_id = await create_draft(client, article)
     state.save_draft(d.isoformat(), content_hash, draft_media_id)
-    logger.info("draft_add_ok", extra={"event": "draft_add_ok", "date": d.isoformat(), "status": "ok"})
+    logger.info("草稿创建成功", extra={"event": "draft_add_ok", "date": d.isoformat(), "status": "ok"})
 
     mode = "draft_only" if settings.wechat_use_draft_only else settings.publish_mode
     result = {
@@ -203,21 +213,21 @@ async def run_daily_publish(target_date: date | None = None, build_only: bool = 
 
     try:
         publish_id = await submit_publish(client, draft_media_id)
-        logger.info("freepublish_submit_ok", extra={"event": "freepublish_submit_ok", "date": d.isoformat(), "status": "ok"})
+        logger.info("发布任务提交成功", extra={"event": "freepublish_submit_ok", "date": d.isoformat(), "status": "ok"})
         status = await poll_publish_status(client, publish_id)
         state.mark_published(draft_media_id, publish_id, str(status.get("publish_status")))
-        logger.info("publish_status_ok", extra={"event": "publish_status_ok", "date": d.isoformat(), "status": "ok"})
+        logger.info("发布状态获取成功", extra={"event": "publish_status_ok", "date": d.isoformat(), "status": "ok"})
         result.update({"status": "published", "publish_id": publish_id, "publish_status": status.get("publish_status")})
     except PublishPermissionError as exc:
         if mode == "safe_auto":
-            logger.warning("fallback_to_draft_only", extra={"event": "fallback_to_draft_only", "date": d.isoformat(), "status": "warn"})
+            logger.warning("自动发布权限不足，已降级为草稿", extra={"event": "fallback_to_draft_only", "date": d.isoformat(), "status": "warn"})
             notify(f"权限不足，已降级草稿模式: {exc.errcode}")
             await notify_webhook(settings.webhook_notify_url, f"权限不足，已降级草稿模式: {exc.errcode}")
             result.update({"status": "fallback_to_draft_only", "error": str(exc)})
         else:
             raise
     except Exception:
-        logger.exception("job_failed", extra={"event": "job_failed", "date": d.isoformat(), "status": "error"})
+        logger.exception("任务执行失败", extra={"event": "job_failed", "date": d.isoformat(), "status": "error"})
         raise
 
     return result
